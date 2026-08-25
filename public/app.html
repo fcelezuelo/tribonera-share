@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TriboneraShare — Sala de Transmissão</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=gg+sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Socket.IO Client Library -->
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="app-body">
+  <!-- App Top Navigation Bar -->
+  <header class="app-header" id="app-header">
+    <div class="header-left">
+      <div class="server-badge">
+        <div class="server-icon">TS</div>
+        <div class="server-meta">
+          <span class="server-name">TriboneraShare</span>
+          <span class="channel-current">
+            <svg class="hash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4"></path>
+            </svg>
+            Comunidade Privada
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active streams pills in header for fast switching -->
+    <div class="header-center" id="header-streams-bar">
+      <!-- Injected via JS when streams are active -->
+    </div>
+
+    <div class="header-right">
+      <!-- Admin Button (Hidden by default, shown for admin role) -->
+      <button id="btn-open-admin" class="btn btn-admin hidden" title="Abrir Painel do Administrador">
+        <svg class="icon-admin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <span>Painel Admin</span>
+      </button>
+
+      <!-- Current User Profile Bar -->
+      <div class="current-user-chip" id="current-user-chip">
+        <div class="user-avatar-wrapper">
+          <div class="user-avatar" id="my-avatar-text">U</div>
+          <span class="status-indicator online" id="my-status-dot"></span>
+        </div>
+        <div class="user-details">
+          <span class="user-nick" id="my-nickname-display">Carregando...</span>
+          <span class="user-role-tag" id="my-role-tag">Membro</span>
+        </div>
+        <button id="btn-logout" class="btn-icon-logout" title="Sair da Conta">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main App Layout with 3 Columns: Channels/Controls, Stage, User List -->
+  <div class="app-layout" id="app-layout">
+    
+    <!-- LEFT SIDEBAR: Channels, Stream Launch & My Controls -->
+    <aside class="sidebar-channels" id="sidebar-channels">
+      <div class="sidebar-section-header">
+        <span>TRANSMISSÕES AO VIVO</span>
+      </div>
+
+      <!-- Quick Action: Share Screen Card -->
+      <div class="share-control-card" id="share-control-card">
+        <div class="card-status-label" id="share-card-status">COMPARTILHAMENTO DE TELA</div>
+        
+        <!-- Not streaming view -->
+        <div id="view-not-streaming" class="stream-action-block">
+          <div class="stream-quality-selector">
+            <label class="quality-label">Qualidade:</label>
+            <select id="select-stream-quality" class="quality-select">
+              <option value="1080p60" selected>1080p @ 60 FPS (Ultra)</option>
+              <option value="1080p30">1080p @ 30 FPS</option>
+              <option value="720p60">720p @ 60 FPS</option>
+              <option value="720p30">720p @ 30 FPS (Leve)</option>
+            </select>
+          </div>
+
+          <button id="btn-start-share" class="btn btn-discord-share">
+            <svg class="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span>Compartilhar Tela</span>
+          </button>
+        </div>
+
+        <!-- Currently streaming view -->
+        <div id="view-is-streaming" class="stream-action-block active-streaming-box hidden">
+          <div class="live-active-badge">
+            <span class="pulse-dot"></span>
+            <span>VOCÊ ESTÁ TRANSMITINDO</span>
+          </div>
+          <div class="streaming-info">
+            <span class="stream-timer" id="my-stream-timer">00:00</span>
+            <span class="stream-specs" id="my-stream-specs">1080p @ 60 FPS</span>
+          </div>
+          <button id="btn-stop-share" class="btn btn-danger btn-block">
+            <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+            </svg>
+            <span>Encerrar Transmissão</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Streams Channel List -->
+      <div class="sidebar-section-header">
+        <span>CANAIS DISPONÍVEIS (<span id="count-active-streams">0</span>)</span>
+      </div>
+
+      <div class="active-streams-channel-list" id="sidebar-streams-list">
+        <!-- Injected via JS: Each active stream as a channel row -->
+        <div class="empty-channels-note" id="empty-channels-note">
+          Nenhuma transmissão ativa no momento.
+        </div>
+      </div>
+
+      <!-- User Device Quick Footer -->
+      <div class="sidebar-user-footer">
+        <div class="footer-user-info">
+          <span class="footer-nick" id="footer-user-name">Você</span>
+          <span class="footer-status-text" id="footer-user-status">🟢 Online</span>
+        </div>
+        <div class="footer-controls">
+          <span class="tribo-tag">TriboneraShare v1.0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: Main Stage & Video Viewport -->
+    <main class="stage-container" id="stage-container">
+      
+      <!-- Stage Switcher Tabs (When multiple users are streaming) -->
+      <div class="stage-stream-tabs hidden" id="stage-stream-tabs">
+        <!-- Tab chips injected dynamically -->
+      </div>
+
+      <!-- Active Stream Stage -->
+      <div class="video-stage-wrapper" id="video-stage-wrapper">
+        
+        <!-- Video Player Header Overlay -->
+        <div class="video-header-bar hidden" id="video-header-bar">
+          <div class="streamer-info">
+            <div class="streamer-avatar" id="current-streamer-avatar">J</div>
+            <div class="streamer-meta">
+              <div class="streamer-name-row">
+                <span class="streamer-title" id="current-streamer-title">Tela de João</span>
+                <span class="badge-live-tag">AO VIVO</span>
+              </div>
+              <span class="streamer-specs-tag" id="current-streamer-specs">1080p • 60 FPS • WebRTC Direct</span>
+            </div>
+          </div>
+
+          <div class="stage-top-actions">
+            <button id="btn-stats-toggle" class="btn-stage-icon" title="Estatísticas de Conexão WebRTC">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 20V10M12 20V4M6 20v-6"></path>
+              </svg>
+            </button>
+            <button id="btn-stop-watching" class="btn-leave-stream" title="Parar de Assistir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span>Sair da Transmissão</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Player Element Container -->
+        <div class="video-viewport" id="video-viewport">
+          <!-- WebRTC Remote Video (watching someone) -->
+          <video id="remote-video" class="stream-video" autoplay playsinline></video>
+          
+          <!-- WebRTC Local Preview Video (when self is streaming) -->
+          <video id="local-preview-video" class="stream-video preview hidden" autoplay playsinline muted></video>
+
+          <!-- Top-Right Floating Viewers Glass Badge (When watching/streaming) -->
+          <div class="glass-viewers-badge hidden" id="glass-viewers-badge">
+            <div class="glass-viewers-avatars" id="glass-viewers-avatars">
+              <!-- Dynamically populated avatar bubbles -->
+            </div>
+            <span class="glass-viewers-count" id="glass-viewers-count">0 Espectadores</span>
+          </div>
+
+          <!-- Bottom-Left Floating Latency Glass Badge -->
+          <div class="glass-latency-badge hidden" id="glass-latency-badge">
+            <span class="pulse-dot-green"></span>
+            <span id="glass-latency-text">Latência: &lt; 15ms</span>
+          </div>
+
+          <!-- WebRTC Real-Time Stats HUD (Toggleable) -->
+          <div class="stats-hud hidden" id="stats-hud">
+            <div class="stats-hud-header">
+              <span>WebRTC Diagnóstico</span>
+              <button class="btn-close-stats" id="btn-close-stats">×</button>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-item"><span class="stat-lbl">Resolução:</span> <strong id="stat-resolution">1920x1080</strong></div>
+              <div class="stat-item"><span class="stat-lbl">Taxa de Quadros:</span> <strong id="stat-fps">60 FPS</strong></div>
+              <div class="stat-item"><span class="stat-lbl">Latência / RTT:</span> <strong id="stat-rtt">&lt; 15 ms</strong></div>
+              <div class="stat-item"><span class="stat-lbl">Protocolo:</span> <strong>WebRTC Direct P2P</strong></div>
+            </div>
+          </div>
+
+          <!-- Video Custom Controls Floating Bar (Hover) -->
+          <div class="video-controls-overlay hidden" id="video-controls-overlay">
+            <div class="controls-left">
+              <button id="btn-toggle-audio" class="control-btn" title="Mutar / Desmutar Áudio">
+                <svg id="icon-volume-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+                <svg id="icon-volume-muted" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              </button>
+              <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-range">
+            </div>
+
+            <div class="controls-right">
+              <button id="btn-pip" class="control-btn" title="Picture-in-Picture (Janela Flutuante)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
+                </svg>
+              </button>
+              <button id="btn-fullscreen" class="control-btn" title="Tela Cheia">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty Stage Placeholder (When not watching and not streaming) -->
+          <div class="empty-stage-state" id="empty-stage-state">
+            <div class="empty-stage-graphic">
+              <div class="discord-screen-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                  <polygon points="10 8 16 11.5 10 15 10 8" fill="#5865F2"></polygon>
+                </svg>
+              </div>
+            </div>
+            <h2 class="empty-title">Nenhuma Transmissão Selecionada</h2>
+            <p class="empty-subtitle">Compartilhe sua tela para os amigos ou clique em uma transmissão ao vivo na lista lateral para assistir.</p>
+            <div class="empty-actions">
+              <button id="btn-empty-start-share" class="btn btn-discord-share">
+                <svg class="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span>Compartilhar Minha Tela Agora</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sleek Sub-Stage Info Grid (Viewers & WebRTC Stability) -->
+        <div class="stage-info-grid hidden" id="viewers-bar">
+          <div class="stage-subcard viewers-subcard">
+            <h3 class="subcard-title">ASSISTINDO AGORA (<span id="viewers-count-num">0</span>)</h3>
+            <div class="viewers-chips-container" id="viewers-chips-container">
+              <span class="empty-viewers-text">Nenhum espectador</span>
+            </div>
+          </div>
+          <div class="stage-subcard connection-subcard">
+            <div class="connection-meta">
+              <h3 class="subcard-title">CONEXÃO WEBRTC</h3>
+              <p class="connection-status-text">
+                <span class="subcard-dot-green"></span>
+                <span>P2P Direto Ativo • Alta Estabilidade (1080p @ 60 FPS)</span>
+              </p>
+            </div>
+            <div class="connection-actions">
+              <span class="webrtc-badge">P2P ENCRYPTED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR: Community Members Presence List -->
+    <aside class="sidebar-users" id="sidebar-users">
+      <div class="users-header">
+        <span>MEMBROS (<span id="count-total-members">0</span>)</span>
+      </div>
+
+      <div class="users-scrollable-list">
+        <!-- Category 1: Streaming -->
+        <div class="users-category-group" id="group-streaming">
+          <div class="category-header">
+            <span class="cat-title">🔴 TRANSMITINDO</span>
+            <span class="cat-count" id="count-streaming">0</span>
+          </div>
+          <div class="category-users-list" id="list-users-streaming">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- Category 2: Online -->
+        <div class="users-category-group" id="group-online">
+          <div class="category-header">
+            <span class="cat-title">🟢 ONLINE</span>
+            <span class="cat-count" id="count-online">0</span>
+          </div>
+          <div class="category-users-list" id="list-users-online">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- Category 3: Offline -->
+        <div class="users-category-group" id="group-offline">
+          <div class="category-header">
+            <span class="cat-title">⚫ OFFLINE</span>
+            <span class="cat-count" id="count-offline">0</span>
+          </div>
+          <div class="category-users-list" id="list-users-offline">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ADMIN MODAL / DRAWER (Visible for admin role only) -->
+  <div class="admin-modal-overlay hidden" id="admin-modal-overlay">
+    <div class="admin-modal-container" id="admin-modal-container">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <div class="admin-badge-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="admin-title">Painel do Administrador</h2>
+            <p class="admin-subtitle">Gerencie convites, membros e permissões da comunidade</p>
+          </div>
+        </div>
+        <button id="btn-close-admin" class="btn-close-modal">×</button>
+      </div>
+
+      <!-- Admin Navigation Tabs -->
+      <div class="admin-nav-tabs">
+        <button class="admin-tab active" data-tab="tab-codes" id="tab-btn-codes">Códigos de Acesso</button>
+        <button class="admin-tab" data-tab="tab-users" id="tab-btn-users">Membros & Usuários</button>
+      </div>
+
+      <div class="admin-modal-body">
+        <!-- Tab 1: Codes -->
+        <div class="admin-tab-content active" id="tab-codes">
+          <div class="admin-action-banner">
+            <div>
+              <h3 class="banner-title">Gerar Novo Código de Convite</h3>
+              <p class="banner-desc">Crie um código de 6 dígitos único para um amigo entrar na comunidade.</p>
+            </div>
+            <button id="btn-generate-code" class="btn btn-discord-share">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Gerar Código</span>
+            </button>
+          </div>
+
+          <!-- Newly generated code alert -->
+          <div id="new-code-alert" class="new-code-alert hidden">
+            <span class="new-code-lbl">NOVO CÓDIGO CRIADO:</span>
+            <span class="new-code-val" id="display-new-code">XK29PL</span>
+            <button id="btn-copy-code" class="btn btn-secondary btn-sm">Copiar Código</button>
+          </div>
+
+          <!-- Codes list table -->
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Status</th>
+                  <th>Vinculado a (Nickname)</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="table-codes-body">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 2: Users Management -->
+        <div class="admin-tab-content hidden" id="tab-users">
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Nickname</th>
+                  <th>Código Vinculado</th>
+                  <th>Cargo</th>
+                  <th>Status em Tempo Real</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="table-users-body">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="/js/webrtc.js"></script>
+  <script src="/js/admin.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
