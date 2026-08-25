@@ -225,20 +225,20 @@ window.TriboneraWebRTC = (function () {
   async function startScreenCapture(qualityOption = '1080p30') {
     let width = 1920;
     let height = 1080;
-    const frameRate = 30;
+    let frameRate = 30;
 
     switch (qualityOption) {
       case '1440p30':
-        width = 2560; height = 1440;
+        width = 2560; height = 1440; frameRate = 30;
         break;
       case '1080p30':
-        width = 1920; height = 1080;
+        width = 1920; height = 1080; frameRate = 30;
         break;
       case '720p30':
-        width = 1280; height = 720;
+        width = 1280; height = 720; frameRate = 30;
         break;
       default:
-        width = 1920; height = 1080;
+        width = 1920; height = 1080; frameRate = 30;
         break;
     }
 
@@ -247,18 +247,68 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Captura de tela não suportada neste ambiente ou navegador.');
       }
 
-      // Standard W3C DisplayMedia options with audio requested
-      const displayMediaOptions = {
-        video: {
-          cursor: 'always',
-          width: { ideal: width, max: 2560 },
-          height: { ideal: height, max: 1440 },
-          frameRate: { ideal: frameRate, max: 30 }
-        },
-        audio: true
-      };
+      let capturedStream = null;
+      let captureError = null;
 
-      const capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+      // Strategy 1: Try with requested resolution/fps and audio enabled
+      try {
+        capturedStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: frameRate }
+          },
+          audio: true
+        });
+      } catch (err1) {
+        console.warn('Tentativa 1 com áudio falhou:', err1.name, err1.message);
+        captureError = err1;
+
+        // If user cancelled on the prompt, do not retry
+        if (err1.name === 'NotAllowedError' && !err1.message?.includes('permissions policy') && !err1.message?.includes('display-capture')) {
+          throw err1;
+        }
+
+        // If iframe permission policy blocked it, do not retry
+        if (err1.name === 'NotAllowedError' && (err1.message?.includes('permissions policy') || err1.message?.includes('display-capture'))) {
+          throw err1;
+        }
+
+        // Strategy 2: If audio source failed (e.g. system rejected audio capture), retry without audio constraint
+        try {
+          capturedStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              width: { ideal: width },
+              height: { ideal: height },
+              frameRate: { ideal: frameRate }
+            },
+            audio: false
+          });
+        } catch (err2) {
+          console.warn('Tentativa 2 sem áudio falhou:', err2.name, err2.message);
+          captureError = err2;
+
+          if (err2.name === 'NotAllowedError') {
+            throw err2;
+          }
+
+          // Strategy 3: Bare minimum constraint (pure video: true) to bypass any strict OS driver restrictions
+          try {
+            capturedStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: false
+            });
+          } catch (err3) {
+            console.error('Todas as tentativas de captura falharam:', err3);
+            throw err3;
+          }
+        }
+      }
+
+      if (!capturedStream) {
+        throw captureError || new Error('Não foi possível obter a tela');
+      }
+
       localStream = capturedStream;
 
       // Handle user stopping screen share via browser's built-in "Stop sharing" bar
@@ -291,7 +341,7 @@ window.TriboneraWebRTC = (function () {
       if (err.name === 'NotAllowedError' && !isPolicyDisallowed) {
         errorMsg = 'Permissão de captura cancelada pelo usuário.';
       } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
-        errorMsg = 'O dispositivo de som do sistema não pôde ser iniciado. Dica: selecione uma "Aba do Chrome" na janela de compartilhamento para transmitir áudio perfeitamente.';
+        errorMsg = 'O dispositivo de áudio não pôde ser iniciado. Dica: selecione uma "Aba do Chrome" na janela de compartilhamento para transmitir som do sistema.';
       }
 
       return {
