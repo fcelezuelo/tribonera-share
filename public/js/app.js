@@ -16,7 +16,6 @@ window.TriboneraApp = (function () {
   const viewNotStreaming = document.getElementById('view-not-streaming');
   const viewIsStreaming = document.getElementById('view-is-streaming');
   const btnStartShare = document.getElementById('btn-start-share');
-  const btnStartVirtualShare = document.getElementById('btn-start-virtual-share');
   const btnEmptyStartShare = document.getElementById('btn-empty-start-share');
   const btnStopShare = document.getElementById('btn-stop-share');
   const selectQuality = document.getElementById('select-stream-quality');
@@ -30,7 +29,6 @@ window.TriboneraApp = (function () {
   // Permission / Screen Options Modal
   const permissionModal = document.getElementById('permission-modal');
   const btnClosePermissionModal = document.getElementById('btn-close-permission-modal');
-  const btnLaunchVirtualStream = document.getElementById('btn-launch-virtual-stream');
 
   // Stage & Video
   const videoHeaderBar = document.getElementById('video-header-bar');
@@ -578,7 +576,7 @@ window.TriboneraApp = (function () {
   }
 
   // --- Screen Sharing Actions (Broadcaster) ---
-  async function startScreenShare(forceVirtual = false) {
+  async function startScreenShare() {
     if (isCurrentlyStreaming) return;
 
     // Leave any watched stream first
@@ -586,12 +584,12 @@ window.TriboneraApp = (function () {
       leaveCurrentStream();
     }
 
-    const quality = selectQuality ? selectQuality.value : '1080p60';
-    const result = await TriboneraWebRTC.startScreenCapture(quality, forceVirtual);
+    const quality = selectQuality ? selectQuality.value : '1080p30';
+    const result = await TriboneraWebRTC.startScreenCapture(quality);
 
     if (!result.success) {
       if (result.isPermissionsPolicyError) {
-        // Open options modal so user can launch in New Tab or use live virtual test stream
+        // Open options modal so user can launch in New Tab for direct OS capture
         openPermissionModal();
         return;
       }
@@ -616,7 +614,7 @@ window.TriboneraApp = (function () {
     // Update left sidebar controls
     viewNotStreaming.classList.add('hidden');
     viewIsStreaming.classList.remove('hidden');
-    myStreamSpecs.textContent = `${result.resolution} @ ${result.fps} FPS${result.isVirtual ? ' (Demo)' : ''}`;
+    myStreamSpecs.textContent = `${result.resolution} @ ${result.fps} FPS`;
 
     // Start stream timer
     streamStartTime = Date.now();
@@ -625,7 +623,7 @@ window.TriboneraApp = (function () {
 
     // Notify server via Socket.IO
     socket.emit('stream:start', {
-      title: result.isVirtual ? `Tela Demo de ${currentUser.nickname}` : `Tela de ${currentUser.nickname}`,
+      title: `Tela de ${currentUser.nickname}`,
       resolution: result.resolution,
       fps: result.fps,
       hasAudio: result.hasAudio
@@ -635,7 +633,7 @@ window.TriboneraApp = (function () {
       TriboneraSound.play('liveStart');
     }
 
-    showToast(result.isVirtual ? 'Transmissão virtual iniciada!' : 'Transmissão iniciada com sucesso!', 'success');
+    showToast('Transmissão iniciada com sucesso!', 'success');
   }
 
   function openPermissionModal() {
@@ -935,20 +933,14 @@ window.TriboneraApp = (function () {
   }
 
   // Event Listeners
-  if (btnStartShare) btnStartShare.addEventListener('click', () => startScreenShare(false));
-  if (btnEmptyStartShare) btnEmptyStartShare.addEventListener('click', () => startScreenShare(false));
-  if (btnStartVirtualShare) btnStartVirtualShare.addEventListener('click', () => startScreenShare(true));
+  if (btnStartShare) btnStartShare.addEventListener('click', startScreenShare);
+  if (btnEmptyStartShare) btnEmptyStartShare.addEventListener('click', startScreenShare);
   if (btnStopShare) btnStopShare.addEventListener('click', stopScreenShare);
   if (btnStopWatching) btnStopWatching.addEventListener('click', () => leaveCurrentStream(true));
   if (btnLogout) btnLogout.addEventListener('click', logout);
 
   if (btnClosePermissionModal) {
     btnClosePermissionModal.addEventListener('click', closePermissionModal);
-  }
-  if (btnLaunchVirtualStream) {
-    btnLaunchVirtualStream.addEventListener('click', () => {
-      startScreenShare(true);
-    });
   }
   if (permissionModal) {
     permissionModal.addEventListener('click', (e) => {

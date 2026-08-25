@@ -220,106 +220,45 @@ window.TriboneraWebRTC = (function () {
   }
 
   /**
-   * 1. Start Screen Sharing (getDisplayMedia or fallback test stream)
+   * 1. Start Screen Sharing (getDisplayMedia)
    */
-  async function startScreenCapture(qualityOption = '1080p60', forceVirtual = false) {
+  async function startScreenCapture(qualityOption = '1080p30') {
     let width = 1920;
     let height = 1080;
-    let frameRate = 60;
+    const frameRate = 30;
 
     switch (qualityOption) {
-      case '1080p60':
-        width = 1920; height = 1080; frameRate = 60;
+      case '1440p30':
+        width = 2560; height = 1440;
         break;
       case '1080p30':
-        width = 1920; height = 1080; frameRate = 30;
-        break;
-      case '720p60':
-        width = 1280; height = 720; frameRate = 60;
+        width = 1920; height = 1080;
         break;
       case '720p30':
-        width = 1280; height = 720; frameRate = 30;
+        width = 1280; height = 720;
+        break;
+      default:
+        width = 1920; height = 1080;
         break;
     }
 
-    if (forceVirtual) {
-      const streamerName = window.TriboneraApp?.getCurrentUser()?.nickname || 'Você';
-      localStream = createVirtualScreenStream(width, height, frameRate, streamerName);
-      return {
-        success: true,
-        stream: localStream,
-        hasAudio: true,
-        resolution: `${height}p`,
-        fps: frameRate,
-        isVirtual: true
-      };
-    }
-
-    const baseVideoOptions = {
-      cursor: 'always',
-      displaySurface: 'monitor',
-      width: { ideal: width, max: 2560 },
-      height: { ideal: height, max: 1440 },
-      frameRate: { ideal: frameRate, max: 60 }
-    };
-
-    // Tiered displayMedia options for cross-browser / OS audio compatibility
-    const captureAttempts = [
-      // 1. First attempt: standard system audio (systemAudio + boolean audio true)
-      {
-        video: baseVideoOptions,
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          systemAudio: 'include'
-        },
-        systemAudio: 'include',
-        selfBrowserSurface: 'exclude'
-      },
-      // 2. Second attempt: simple boolean audio: true (avoids constraint over-specification errors)
-      {
-        video: baseVideoOptions,
-        audio: true
-      },
-      // 3. Third attempt: video only if audio device/driver was rejected by OS
-      {
-        video: baseVideoOptions,
-        audio: false
-      }
-    ];
-
     try {
-      // Check if navigator.mediaDevices and getDisplayMedia exist
       if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
-        throw new Error('Captura de tela não suportada neste ambiente');
+        throw new Error('Captura de tela não suportada neste ambiente ou navegador.');
       }
 
-      let capturedStream = null;
-      let lastAttemptError = null;
+      // Standard W3C DisplayMedia options with audio requested
+      const displayMediaOptions = {
+        video: {
+          cursor: 'always',
+          width: { ideal: width, max: 2560 },
+          height: { ideal: height, max: 1440 },
+          frameRate: { ideal: frameRate, max: 30 }
+        },
+        audio: true
+      };
 
-      for (let i = 0; i < captureAttempts.length; i++) {
-        try {
-          capturedStream = await navigator.mediaDevices.getDisplayMedia(captureAttempts[i]);
-          if (capturedStream) break;
-        } catch (attemptErr) {
-          lastAttemptError = attemptErr;
-          console.warn(`Tentativa ${i + 1} de captura falhou:`, attemptErr.name, attemptErr.message);
-          // If user explicitly pressed "Cancel" on browser dialog, stop trying immediately
-          if (attemptErr.name === 'NotAllowedError' && !attemptErr.message?.includes('permissions policy')) {
-            throw attemptErr;
-          }
-          // If it's a policy iframe error, stop trying immediately
-          if (attemptErr.name === 'NotAllowedError' && attemptErr.message?.includes('permissions policy')) {
-            throw attemptErr;
-          }
-        }
-      }
-
-      if (!capturedStream) {
-        throw lastAttemptError || new Error('Não foi possível iniciar a captura');
-      }
-
+      const capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
       localStream = capturedStream;
 
       // Handle user stopping screen share via browser's built-in "Stop sharing" bar
@@ -338,22 +277,21 @@ window.TriboneraWebRTC = (function () {
         stream: localStream,
         hasAudio: audioTracksCount > 0,
         resolution: `${height}p`,
-        fps: frameRate,
-        isVirtual: false
+        fps: frameRate
       };
     } catch (err) {
-      console.warn('Tentativa de captura nativa:', err);
+      console.warn('Tentativa de captura de tela:', err);
       const isPolicyDisallowed = (
         (err.name === 'NotAllowedError' && err.message?.includes('permissions policy')) ||
         err.message?.includes('display-capture') ||
         err.message?.includes('disallowed')
       );
 
-      let errorMsg = err.message;
-      if (err.name === 'NotAllowedError') {
-        errorMsg = 'Permissão de captura cancelada.';
+      let errorMsg = err.message || 'Erro ao iniciar transmissão';
+      if (err.name === 'NotAllowedError' && !isPolicyDisallowed) {
+        errorMsg = 'Permissão de captura cancelada pelo usuário.';
       } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
-        errorMsg = 'O dispositivo de áudio não pôde ser iniciado pelo sistema. Dica: selecione "Aba do Chrome" ou verifique se o áudio do sistema está habilitado.';
+        errorMsg = 'O dispositivo de som do sistema não pôde ser iniciado. Dica: selecione uma "Aba do Chrome" na janela de compartilhamento para transmitir áudio perfeitamente.';
       }
 
       return {

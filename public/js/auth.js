@@ -16,6 +16,7 @@
   const savedCodeHint = document.getElementById('saved-code-hint');
   const defaultCodeHelper = document.getElementById('default-code-helper');
   const btnClearSavedCode = document.getElementById('btn-clear-saved-code');
+  const btnToggleCodeVisibility = document.getElementById('btn-toggle-code-visibility');
 
   const formNickname = document.getElementById('form-nickname');
   const inputNickname = document.getElementById('input-nickname');
@@ -66,6 +67,29 @@
       savedCodeHint.classList.add('hidden');
       defaultCodeHelper.classList.remove('hidden');
       btnClearSavedCode.classList.add('hidden');
+      inputCode.focus();
+    });
+  }
+
+  // Toggle code visibility (password vs text)
+  if (btnToggleCodeVisibility && inputCode) {
+    btnToggleCodeVisibility.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isPassword = inputCode.type === 'password';
+      inputCode.type = isPassword ? 'text' : 'password';
+
+      const iconOpen = btnToggleCodeVisibility.querySelector('.icon-eye-open');
+      const iconClosed = btnToggleCodeVisibility.querySelector('.icon-eye-closed');
+
+      if (isPassword) {
+        if (iconOpen) iconOpen.classList.add('hidden');
+        if (iconClosed) iconClosed.classList.remove('hidden');
+        btnToggleCodeVisibility.title = 'Ocultar código';
+      } else {
+        if (iconOpen) iconOpen.classList.remove('hidden');
+        if (iconClosed) iconClosed.classList.add('hidden');
+        btnToggleCodeVisibility.title = 'Mostrar código';
+      }
       inputCode.focus();
     });
   }

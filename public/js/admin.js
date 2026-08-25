@@ -22,7 +22,12 @@ window.TriboneraAdmin = (function () {
   const tableUsersBody = document.getElementById('table-users-body');
 
   function getToken() {
-    return localStorage.getItem('tribonera_token');
+    let token = localStorage.getItem('tribonera_token');
+    if (!token) {
+      const match = document.cookie.match(/(?:^|;\s*)tribonera_token=([^;]+)/);
+      if (match) token = match[1];
+    }
+    return token;
   }
 
   function openAdminModal() {
@@ -52,20 +57,29 @@ window.TriboneraAdmin = (function () {
   // Load all admin data from server
   async function loadAdminData() {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      if (window.TriboneraApp) {
+        window.TriboneraApp.showToast('Sessão não encontrada. Faça login com o código de Administrador.', 'error');
+      }
+      return;
+    }
 
     try {
       const res = await fetch('/api/admin/data', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error('Falha ao carregar dados administrativos.');
+        throw new Error(data.error || 'Falha ao carregar dados administrativos.');
       }
 
-      const data = await res.json();
-      renderCodesTable(data.codes);
-      renderUsersTable(data.users);
+      renderCodesTable(data.codes || []);
+      renderUsersTable(data.users || []);
     } catch (err) {
       console.error('Erro ao carregar dados do admin:', err);
       if (window.TriboneraApp) {

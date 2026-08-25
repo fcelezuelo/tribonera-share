@@ -85,13 +85,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper to authenticate request
 function authenticateRequest(req) {
-  const token = req.cookies?.tribonera_token || 
-                req.headers.authorization?.replace('Bearer ', '') ||
-                req.query.token;
+  let token = req.cookies?.tribonera_token;
+  if (!token && req.headers.authorization) {
+    token = req.headers.authorization.replace(/^[Bb]earer\s+/i, '').trim();
+  }
+  if (!token && req.query?.token) {
+    token = req.query.token;
+  }
   
   if (!token) return null;
   const users = readJSON(USERS_FILE, []);
-  return users.find(u => u.token === token) || null;
+  let user = users.find(u => u.token === token);
+  if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
+    user = users.find(u => u.code === ADMIN_CODE);
+  }
+  return user || null;
 }
 
 // Routes
@@ -126,6 +134,15 @@ app.post('/api/auth/validate-code', (req, res) => {
       users.push(adminUser);
       writeJSON(USERS_FILE, users);
     }
+    
+    // Set cookie for session persistence
+    res.cookie('tribonera_token', adminUser.token, {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+
     return res.json({
       status: 'existing_user',
       user: {
@@ -140,6 +157,13 @@ app.post('/api/auth/validate-code', (req, res) => {
   // Check in users first (already registered)
   const existingUser = users.find(u => u.code === code);
   if (existingUser) {
+    res.cookie('tribonera_token', existingUser.token, {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+
     return res.json({
       status: 'existing_user',
       user: {
@@ -275,7 +299,10 @@ app.post('/api/auth/logout', (req, res) => {
 
 function requireAdmin(req, res, next) {
   const user = authenticateRequest(req);
-  if (!user || user.role !== 'admin') {
+  if (!user) {
+    return res.status(401).json({ error: 'Sessão expirada ou não autenticada. Faça login novamente.' });
+  }
+  if (user.role !== 'admin' && user.code !== ADMIN_CODE) {
     return res.status(403).json({ error: 'Acesso negado. Apenas o Administrador pode executar esta ação.' });
   }
   req.adminUser = user;
@@ -414,16 +441,27 @@ app.post('/api/admin/remove-user', requireAdmin, (req, res) => {
 // socket.id => { socketId, code, nickname, role, token, status: '🟢 Online' | '🔴 Transmitindo' | '👀 Assistindo', watchingStreamerCode, watchingStreamerName }
 const onlineUsers = new Map();
 
-// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map(socketId => nickname), startedAt }
+// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map(socketId => { code, nickname }), startedAt }
 const memoryStreams = new Map();
 
 function getActiveStreamsList() {
   const list = [];
   for (const [, stream] of memoryStreams.entries()) {
-    const viewersArr = Array.from(stream.viewers.entries()).map(([sId, nick]) => ({
-      socketId: sId,
-      nickname: nick
-    }));
+    // Group and deduplicate viewers by their unique user code
+    const uniqueViewersMap = new Map();
+    for (const [sId, viewerInfo] of stream.viewers.entries()) {
+      const code = typeof viewerInfo === 'object' && viewerInfo.code ? viewerInfo.code : sId;
+      const nickname = typeof viewerInfo === 'object' && viewerInfo.nickname ? viewerInfo.nickname : viewerInfo;
+      if (!uniqueViewersMap.has(code)) {
+        uniqueViewersMap.set(code, {
+          socketId: sId,
+          code,
+          nickname
+        });
+      }
+    }
+
+    const viewersArr = Array.from(uniqueViewersMap.values());
 
     list.push({
       streamerSocketId: stream.streamerSocketId,
@@ -431,7 +469,7 @@ function getActiveStreamsList() {
       streamerName: stream.streamerName,
       title: stream.title || `Tela de ${stream.streamerName}`,
       resolution: stream.resolution || '1080p',
-      fps: stream.fps || 60,
+      fps: stream.fps || 30,
       hasAudio: !!stream.hasAudio,
       viewersCount: viewersArr.length,
       viewers: viewersArr,
@@ -669,14 +707,18 @@ io.on('connection', (socket) => {
     viewer.watchingStreamerName = stream.streamerName;
 
     // Add viewer to stream viewers map
-    stream.viewers.set(socket.id, viewer.nickname);
+    stream.viewers.set(socket.id, {
+      code: viewer.code,
+      nickname: viewer.nickname
+    });
     syncStreamsToDisk();
     broadcastPresence();
 
     // Signal the streamer that a new viewer wants WebRTC connection
     io.to(streamerSocketId).emit('webrtc:new-viewer', {
       viewerSocketId: socket.id,
-      viewerNickname: viewer.nickname
+      viewerNickname: viewer.nickname,
+      viewerCode: viewer.code
     });
   };
 

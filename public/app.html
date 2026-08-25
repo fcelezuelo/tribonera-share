@@ -95,10 +95,9 @@
           <div class="stream-quality-selector">
             <label class="quality-label">Qualidade:</label>
             <select id="select-stream-quality" class="quality-select">
-              <option value="1080p60" selected>1080p @ 60 FPS (Ultra)</option>
-              <option value="1080p30">1080p @ 30 FPS</option>
-              <option value="720p60">720p @ 60 FPS</option>
-              <option value="720p30">720p @ 30 FPS (Leve)</option>
+              <option value="1080p30" selected>1080p Full HD @ 30 FPS (Recomendado)</option>
+              <option value="720p30">720p HD @ 30 FPS (Mais Leve)</option>
+              <option value="1440p30">1440p 2K @ 30 FPS (Alta Definição)</option>
             </select>
           </div>
 
@@ -109,14 +108,6 @@
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
             <span>Compartilhar Tela</span>
-          </button>
-          
-          <button id="btn-start-virtual-share" class="btn btn-virtual-share" title="Iniciar transmissão de teste em tempo real (60 FPS)">
-            <svg class="icon-virtual" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polygon points="10 8 16 12 10 16 10 8"></polygon>
-            </svg>
-            <span>Transmitir Tela de Teste (60 FPS)</span>
           </button>
         </div>
 
@@ -483,8 +474,8 @@
         </div>
 
         <div class="stream-option-cards">
-          <!-- Option 1: Open in New Tab for Real OS Screen Capture -->
-          <div class="stream-option-card highlighted">
+          <!-- Option: Open in New Tab for Real OS Screen Capture -->
+          <div class="stream-option-card highlighted" style="border-color: var(--accent-blurple); background: rgba(88, 101, 242, 0.08);">
             <div class="option-header">
               <div class="option-icon-wrap os-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -494,36 +485,18 @@
                 </svg>
               </div>
               <div class="option-content">
-                <h4 class="option-title">Transmissão Real do SO (Janelas & Jogos)</h4>
-                <p class="option-desc">Transmita jogos, janelas, vídeos e áudio do seu computador em 1080p @ 60 FPS com WebRTC de baixa latência.</p>
+                <h4 class="option-title">Transmissão Direta do Sistema (Janelas, Jogos & Áudio)</h4>
+                <p class="option-desc">Transmita qualquer tela, jogo, janela ou aba do seu computador com som em tempo real via WebRTC.</p>
               </div>
             </div>
-            <a href="/app.html" target="_blank" class="btn btn-primary btn-block btn-launch-tab" id="btn-launch-new-tab">
+            <a href="/app" target="_blank" class="btn btn-primary btn-block btn-launch-tab" id="btn-launch-new-tab">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                 <polyline points="15 3 21 3 21 9"></polyline>
                 <line x1="10" y1="14" x2="21" y2="3"></line>
               </svg>
-              <span>Abrir em Nova Aba (Recomendado)</span>
+              <span>Abrir em Nova Aba</span>
             </a>
-          </div>
-
-          <!-- Option 2: Live Demo Stream within iframe -->
-          <div class="stream-option-card">
-            <div class="option-header">
-              <div class="option-icon-wrap demo-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-              </div>
-              <div class="option-content">
-                <h4 class="option-title">Transmissão de Teste Virtual (Neste Quadro)</h4>
-                <p class="option-desc">Gera um feed simulado animado a 60 FPS com áudio sintetizado para testar conexões WebRTC e múltiplos espectadores aqui mesmo.</p>
-              </div>
-            </div>
-            <button class="btn btn-secondary btn-block" id="btn-launch-virtual-stream">
-              <span>🎮 Iniciar Demonstração em Tempo Real (60 FPS)</span>
-            </button>
           </div>
         </div>
       </div>
