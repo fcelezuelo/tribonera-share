@@ -20,7 +20,6 @@
   const nickErrorMsg = document.getElementById('nick-error-msg');
   const displayValidCode = document.getElementById('display-valid-code');
   const btnBackCode = document.getElementById('btn-back-code');
-  const chipAdminCode = document.getElementById('chip-admin-code');
 
   let verifiedCode = '';
 
@@ -90,14 +89,6 @@
     inputCode.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     hideError(authErrorMsg);
   });
-
-  // Admin code chip 1-click test fill
-  if (chipAdminCode) {
-    chipAdminCode.addEventListener('click', () => {
-      inputCode.value = 'FELLMASTER123';
-      inputCode.focus();
-    });
-  }
 
   // Back button in Nickname step
   btnBackCode.addEventListener('click', () => {
