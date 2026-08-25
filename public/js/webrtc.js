@@ -28,10 +28,185 @@ window.TriboneraWebRTC = (function () {
   // Stats calculation interval
   let statsInterval = null;
 
+  // Canvas animation frame loop for virtual demo stream
+  let demoAnimationId = null;
+  let demoAudioCtx = null;
+
   /**
-   * 1. Start Screen Sharing (getDisplayMedia)
+   * Generates a high-definition 60 FPS simulated screen feed with animated graphics & audio
+   * Allows full WebRTC testing even inside restricted preview iframes.
    */
-  async function startScreenCapture(qualityOption = '1080p60') {
+  function createVirtualScreenStream(width = 1920, height = 1080, fps = 60, streamerNick = 'Você') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    let frame = 0;
+    const particles = Array.from({ length: 30 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+      radius: Math.random() * 5 + 2,
+      color: ['#5865F2', '#38BDF8', '#EC4899', '#22C55E'][Math.floor(Math.random() * 4)]
+    }));
+
+    function draw() {
+      frame++;
+      // Background gradient
+      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+      bgGrad.addColorStop(0, '#111216');
+      bgGrad.addColorStop(0.5, '#1e1f22');
+      bgGrad.addColorStop(1, '#0f1013');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 1;
+      const gridSize = 60;
+      for (let x = 0; x < width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      // Moving glowing particles
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > width) p.vx *= -1;
+        if (p.y < 0 || p.y > height) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      // Simulated Sleek Interface Mockup Window
+      const winW = width * 0.75;
+      const winH = height * 0.7;
+      const winX = (width - winW) / 2;
+      const winY = (height - winH) / 2;
+
+      ctx.fillStyle = 'rgba(43, 45, 49, 0.9)';
+      ctx.strokeStyle = 'rgba(88, 101, 242, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(winX, winY, winW, winH, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      // Window Header
+      ctx.fillStyle = 'rgba(35, 36, 40, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(winX, winY, winW, 48, [16, 16, 0, 0]);
+      ctx.fill();
+
+      // Window dots
+      ctx.fillStyle = '#EF4444';
+      ctx.beginPath(); ctx.arc(winX + 24, winY + 24, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#F59E0B';
+      ctx.beginPath(); ctx.arc(winX + 44, winY + 24, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#22C55E';
+      ctx.beginPath(); ctx.arc(winX + 64, winY + 24, 6, 0, Math.PI * 2); ctx.fill();
+
+      // Window Title
+      ctx.fillStyle = '#F2F3F5';
+      ctx.font = 'bold 16px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('TriboneraShare — Transmissão Virtual de Demonstração (60 FPS)', winX + 85, winY + 30);
+
+      // Central Content: Animated Live Soundwaves & Game HUD
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0] + '.' + String(Math.floor(now.getMilliseconds() / 10)).padStart(2, '0');
+
+      // Live Badge
+      ctx.fillStyle = '#EF4444';
+      ctx.beginPath();
+      ctx.roundRect(winX + 40, winY + 80, 80, 26, 6);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('🔴 AO VIVO', winX + 50, winY + 98);
+
+      // Streamer Nick & Clock
+      ctx.fillStyle = '#DBDEE1';
+      ctx.font = '14px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(`Streamer: ${streamerNick} • Horário: ${timeStr}`, winX + 135, winY + 98);
+
+      // Audio / Video animated bars
+      const numBars = 36;
+      const barSpacing = (winW - 80) / numBars;
+      for (let i = 0; i < numBars; i++) {
+        const barHeight = Math.abs(Math.sin((frame * 0.05) + (i * 0.25))) * (winH * 0.35) + 15;
+        const barX = winX + 40 + (i * barSpacing);
+        const barY = winY + winH - 60 - barHeight;
+
+        const grad = ctx.createLinearGradient(0, barY, 0, barY + barHeight);
+        grad.addColorStop(0, '#5865F2');
+        grad.addColorStop(1, '#38BDF8');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barSpacing - 4, barHeight, 4);
+        ctx.fill();
+      }
+
+      // Specs Banner
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.roundRect(winX + 40, winY + 125, winW - 80, 50, 8);
+      ctx.fill();
+
+      ctx.fillStyle = '#22C55E';
+      ctx.font = 'bold 13px "JetBrains Mono", monospace';
+      ctx.fillText(`✔ WebRTC P2P Direct Stream • Resolução: ${width}x${height} • Taxa: ${fps} FPS`, winX + 56, winY + 155);
+
+      demoAnimationId = requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    const stream = canvas.captureStream(fps);
+
+    // Generate simulated silent/subtle WebAudio tone track
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        demoAudioCtx = new AudioCtx();
+        const osc = demoAudioCtx.createOscillator();
+        const gain = demoAudioCtx.createGain();
+        gain.gain.value = 0.001; // subtle audible test signal
+        osc.connect(gain);
+        const dst = demoAudioCtx.createMediaStreamDestination();
+        gain.connect(dst);
+        osc.start();
+        dst.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+      }
+    } catch (e) {
+      console.warn('Simulated audio init note:', e);
+    }
+
+    return stream;
+  }
+
+  /**
+   * 1. Start Screen Sharing (getDisplayMedia or fallback test stream)
+   */
+  async function startScreenCapture(qualityOption = '1080p60', forceVirtual = false) {
     let width = 1920;
     let height = 1080;
     let frameRate = 60;
@@ -51,6 +226,19 @@ window.TriboneraWebRTC = (function () {
         break;
     }
 
+    if (forceVirtual) {
+      const streamerName = window.TriboneraApp?.getCurrentUser()?.nickname || 'Você';
+      localStream = createVirtualScreenStream(width, height, frameRate, streamerName);
+      return {
+        success: true,
+        stream: localStream,
+        hasAudio: true,
+        resolution: `${height}p`,
+        fps: frameRate,
+        isVirtual: true
+      };
+    }
+
     const displayMediaOptions = {
       video: {
         cursor: 'always',
@@ -67,6 +255,11 @@ window.TriboneraWebRTC = (function () {
     };
 
     try {
+      // Check if navigator.mediaDevices and getDisplayMedia exist
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+        throw new Error('Captura de tela não suportada neste ambiente');
+      }
+
       localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
       // Handle user stopping screen share via browser's built-in "Stop sharing" bar
@@ -83,13 +276,23 @@ window.TriboneraWebRTC = (function () {
         stream: localStream,
         hasAudio: localStream.getAudioTracks().length > 0,
         resolution: `${height}p`,
-        fps: frameRate
+        fps: frameRate,
+        isVirtual: false
       };
     } catch (err) {
-      console.error('Falha ao capturar tela:', err);
+      console.warn('Tentativa de captura nativa:', err);
+      const isPolicyDisallowed = (
+        (err.name === 'NotAllowedError' && err.message?.includes('permissions policy')) ||
+        err.message?.includes('display-capture') ||
+        err.message?.includes('disallowed')
+      );
+
       return {
         success: false,
-        error: err.name === 'NotAllowedError' ? 'Permissão de captura de tela cancelada.' : err.message
+        isPermissionsPolicyError: isPolicyDisallowed,
+        error: isPolicyDisallowed
+          ? 'A captura de tela nativa do sistema requer abertura em Nova Aba devido às diretivas de segurança de quadros (iframe) do navegador.'
+          : (err.name === 'NotAllowedError' ? 'Permissão de captura de tela cancelada.' : err.message)
       };
     }
   }
@@ -266,6 +469,18 @@ window.TriboneraWebRTC = (function () {
    * 7. Stop Streaming (cleanup all peer connections and local media)
    */
   function stopStreaming() {
+    if (demoAnimationId) {
+      cancelAnimationFrame(demoAnimationId);
+      demoAnimationId = null;
+    }
+
+    if (demoAudioCtx) {
+      try {
+        demoAudioCtx.close();
+      } catch (e) {}
+      demoAudioCtx = null;
+    }
+
     for (const [, pc] of streamerPeerConnections.entries()) {
       try {
         pc.close();

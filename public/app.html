@@ -35,6 +35,16 @@
     </div>
 
     <div class="header-right">
+      <!-- Open in New Tab Button (for full screen OS capture) -->
+      <a href="/app.html" target="_blank" class="btn btn-open-tab" title="Abrir em Nova Aba (Permite captura de tela nativa do SO sem restrições de iframe)">
+        <svg class="icon-tab" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+        <span>Nova Aba</span>
+      </a>
+
       <!-- Admin Button (Hidden by default, shown for admin role) -->
       <button id="btn-open-admin" class="btn btn-admin hidden" title="Abrir Painel do Administrador">
         <svg class="icon-admin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -96,6 +106,14 @@
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
             <span>Compartilhar Tela</span>
+          </button>
+          
+          <button id="btn-start-virtual-share" class="btn btn-virtual-share" title="Iniciar transmissão de teste em tempo real (60 FPS)">
+            <svg class="icon-virtual" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+            <span>Transmitir Tela de Teste (60 FPS)</span>
           </button>
         </div>
 
@@ -427,6 +445,82 @@
                 <!-- Injected via JS -->
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Permission / Screen Share Options Modal -->
+  <div class="admin-modal-overlay hidden" id="permission-modal">
+    <div class="admin-modal-container permission-modal-container">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <div class="admin-badge-icon permission-badge-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 class="admin-title">Compartilhamento de Tela</h2>
+            <p class="admin-subtitle">Selecione como deseja transmitir para a comunidade</p>
+          </div>
+        </div>
+        <button class="btn-close-modal" id="btn-close-permission-modal">&times;</button>
+      </div>
+
+      <div class="admin-modal-body permission-modal-body">
+        <div class="permission-info-box">
+          <div class="info-icon">ℹ️</div>
+          <div class="info-text">
+            <strong>Restrição de Segurança do Navegador:</strong> A captura direta de tela do SO (janelas, jogos, abas com áudio) é restrita pelo navegador quando executada dentro de quadros embutidos (iframe).
+          </div>
+        </div>
+
+        <div class="stream-option-cards">
+          <!-- Option 1: Open in New Tab for Real OS Screen Capture -->
+          <div class="stream-option-card highlighted">
+            <div class="option-header">
+              <div class="option-icon-wrap os-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </div>
+              <div class="option-content">
+                <h4 class="option-title">Transmissão Real do SO (Janelas & Jogos)</h4>
+                <p class="option-desc">Transmita jogos, janelas, vídeos e áudio do seu computador em 1080p @ 60 FPS com WebRTC de baixa latência.</p>
+              </div>
+            </div>
+            <a href="/app.html" target="_blank" class="btn btn-primary btn-block btn-launch-tab" id="btn-launch-new-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+              <span>Abrir em Nova Aba (Recomendado)</span>
+            </a>
+          </div>
+
+          <!-- Option 2: Live Demo Stream within iframe -->
+          <div class="stream-option-card">
+            <div class="option-header">
+              <div class="option-icon-wrap demo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </div>
+              <div class="option-content">
+                <h4 class="option-title">Transmissão de Teste Virtual (Neste Quadro)</h4>
+                <p class="option-desc">Gera um feed simulado animado a 60 FPS com áudio sintetizado para testar conexões WebRTC e múltiplos espectadores aqui mesmo.</p>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-block" id="btn-launch-virtual-stream">
+              <span>🎮 Iniciar Demonstração em Tempo Real (60 FPS)</span>
+            </button>
           </div>
         </div>
       </div>
