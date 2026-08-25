@@ -440,6 +440,7 @@ window.TriboneraApp = (function () {
     // Show local preview
     localPreviewVideo.srcObject = result.stream;
     localPreviewVideo.classList.remove('hidden');
+    localPreviewVideo.play().catch(err => console.warn('Erro ao reproduzir preview local:', err));
     remoteVideo.classList.add('hidden');
     emptyStageState.classList.add('hidden');
     videoControlsOverlay.classList.add('hidden');

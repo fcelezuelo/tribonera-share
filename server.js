@@ -620,7 +620,7 @@ io.on('connection', (socket) => {
   });
 
   // 3. Viewer requests to watch a specific stream
-  socket.on('stream:watch', ({ streamerSocketId }) => {
+  const handleWatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (!viewer) return;
 
@@ -644,10 +644,13 @@ io.on('connection', (socket) => {
       viewerSocketId: socket.id,
       viewerNickname: viewer.nickname
     });
-  });
+  };
+
+  socket.on('stream:watch', handleWatchStream);
+  socket.on('stream:join-viewer', handleWatchStream);
 
   // 4. Viewer stops watching a stream
-  socket.on('stream:unwatch', ({ streamerSocketId }) => {
+  const handleUnwatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (viewer) {
       viewer.status = '🟢 Online';
@@ -667,7 +670,10 @@ io.on('connection', (socket) => {
 
     syncStreamsToDisk();
     broadcastPresence();
-  });
+  };
+
+  socket.on('stream:unwatch', handleUnwatchStream);
+  socket.on('stream:leave-viewer', handleUnwatchStream);
 
   // 5. WebRTC Relay Signaling: Offer (Streamer -> Viewer)
   socket.on('webrtc:offer', ({ targetSocketId, offer }) => {
