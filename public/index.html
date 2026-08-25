@@ -40,7 +40,10 @@
 
       <form id="form-code" class="auth-form" autocomplete="off">
         <div class="form-group">
-          <label for="input-code" class="form-label">CÓDIGO DE ACESSO</label>
+          <div class="form-label-row">
+            <label for="input-code" class="form-label">CÓDIGO DE ACESSO</label>
+            <button type="button" id="btn-clear-saved-code" class="btn-text-action hidden" title="Limpar código salvo neste dispositivo">Esquecer</button>
+          </div>
           <div class="input-code-wrapper">
             <input 
               type="text" 
@@ -54,7 +57,13 @@
             />
             <span class="code-badge" id="code-badge">6 DÍGITOS</span>
           </div>
-          <p class="input-helper">Cada código é único e intransferível.</p>
+          <div class="saved-code-hint hidden" id="saved-code-hint">
+            <svg class="icon-saved-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Código lembrado neste dispositivo</span>
+          </div>
+          <p class="input-helper" id="default-code-helper">Cada código é único e intransferível.</p>
         </div>
 
         <div id="auth-error-msg" class="alert-box error hidden" role="alert"></div>

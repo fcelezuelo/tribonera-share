@@ -450,21 +450,37 @@ function broadcastPresence() {
   const allUsers = readJSON(USERS_FILE, []);
   const activeStreamsList = getActiveStreamsList();
 
-  const onlineList = [];
-  const onlineCodes = new Set();
+  const userMap = new Map();
 
   for (const [, user] of onlineUsers.entries()) {
-    onlineCodes.add(user.code);
-    onlineList.push({
-      socketId: user.socketId,
-      code: user.code,
-      nickname: user.nickname,
-      role: user.role,
-      status: user.status,
-      watchingStreamerName: user.watchingStreamerName || null,
-      isStreaming: memoryStreams.has(user.socketId)
-    });
+    const isStreaming = memoryStreams.has(user.socketId);
+    
+    if (!userMap.has(user.code)) {
+      userMap.set(user.code, {
+        socketId: user.socketId,
+        code: user.code,
+        nickname: user.nickname,
+        role: user.role,
+        status: user.status,
+        watchingStreamerName: user.watchingStreamerName || null,
+        isStreaming: isStreaming
+      });
+    } else {
+      const existing = userMap.get(user.code);
+      // Prioritize active streaming state, then watching state
+      if (isStreaming) {
+        existing.isStreaming = true;
+        existing.status = '🔴 Transmitindo';
+        existing.socketId = user.socketId;
+      } else if (!existing.isStreaming && user.watchingStreamerName) {
+        existing.status = user.status;
+        existing.watchingStreamerName = user.watchingStreamerName;
+      }
+    }
   }
+
+  const onlineList = Array.from(userMap.values());
+  const onlineCodes = new Set(userMap.keys());
 
   const offlineList = allUsers
     .filter(u => !onlineCodes.has(u.code))
@@ -546,6 +562,15 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   const user = socket.user;
 
+  // Check if user is already connected from another tab
+  let wasAlreadyOnline = false;
+  for (const [, existing] of onlineUsers.entries()) {
+    if (existing.code === user.code) {
+      wasAlreadyOnline = true;
+      break;
+    }
+  }
+
   // Add to online map
   onlineUsers.set(socket.id, {
     socketId: socket.id,
@@ -571,6 +596,15 @@ io.on('connection', (socket) => {
 
   // Broadcast presence to all
   broadcastPresence();
+
+  // Broadcast real-time notification only if this is a fresh new connection
+  if (!wasAlreadyOnline) {
+    socket.broadcast.emit('user:joined', {
+      nickname: user.nickname,
+      code: user.code,
+      role: user.role
+    });
+  }
 
   // --- WebRTC & Screen Sharing Handlers ---
 

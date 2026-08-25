@@ -74,6 +74,7 @@ window.TriboneraApp = (function () {
   const footerUserName = document.getElementById('footer-user-name');
   const footerUserStatus = document.getElementById('footer-user-status');
   const toastContainer = document.getElementById('toast-container');
+  const btnToggleSound = document.getElementById('btn-toggle-sound');
 
   // Application State
   let socket = null;
@@ -88,19 +89,155 @@ window.TriboneraApp = (function () {
     return localStorage.getItem('tribonera_token');
   }
 
-  // --- Toast Notifications ---
-  function showToast(message, type = 'info') {
+  // --- Rich Real-Time Notifications & Toasts ---
+  function showNotification({
+    title = '',
+    message = '',
+    type = 'info',
+    avatarText = '',
+    actionBtn = null,
+    duration = 4500
+  }) {
+    if (!toastContainer) return;
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
+    
+    // Main Wrapper
+    const mainWrap = document.createElement('div');
+    mainWrap.className = 'toast-main';
+
+    // Icon or Avatar
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'toast-icon-wrap';
+
+    if (avatarText) {
+      iconWrap.textContent = avatarText.slice(0, 2).toUpperCase();
+    } else if (type === 'user-join') {
+      iconWrap.innerHTML = '👋';
+    } else if (type === 'live') {
+      iconWrap.innerHTML = '🔴';
+    } else if (type === 'success') {
+      iconWrap.innerHTML = '✓';
+    } else if (type === 'error') {
+      iconWrap.innerHTML = '⚠️';
+    } else {
+      iconWrap.innerHTML = 'ℹ️';
+    }
+    mainWrap.appendChild(iconWrap);
+
+    // Content container
+    const contentWrap = document.createElement('div');
+    contentWrap.className = 'toast-content';
+
+    if (title) {
+      const titleEl = document.createElement('div');
+      titleEl.className = 'toast-title';
+      titleEl.textContent = title;
+      contentWrap.appendChild(titleEl);
+    }
+
+    const messageEl = document.createElement('div');
+    messageEl.className = 'toast-message';
+    messageEl.innerHTML = message;
+    contentWrap.appendChild(messageEl);
+
+    mainWrap.appendChild(contentWrap);
+
+    // Dismiss Button
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'toast-dismiss';
+    dismissBtn.setAttribute('aria-label', 'Fechar');
+    dismissBtn.innerHTML = '&times;';
+    mainWrap.appendChild(dismissBtn);
+
+    toast.appendChild(mainWrap);
+
+    // Optional Interactive Action Row
+    if (actionBtn && typeof actionBtn.onClick === 'function') {
+      const actionRow = document.createElement('div');
+      actionRow.className = 'toast-action-row';
+
+      const btn = document.createElement('button');
+      btn.className = 'toast-btn-action';
+      btn.textContent = actionBtn.text || 'Assistir';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dismissToast();
+        actionBtn.onClick();
+      });
+      actionRow.appendChild(btn);
+      toast.appendChild(actionRow);
+    }
+
+    // Progress Bar
+    const progressEl = document.createElement('div');
+    progressEl.className = 'toast-progress';
+    toast.appendChild(progressEl);
+
     toastContainer.appendChild(toast);
 
-    setTimeout(() => {
+    // Dismiss logic with timer and hover pause
+    let remainingTime = duration;
+    let startTime = Date.now();
+    let timeoutId = null;
+    let progressAnim = null;
+
+    function startTimer() {
+      startTime = Date.now();
+      progressEl.style.transition = `transform ${remainingTime}ms linear`;
+      progressEl.style.transform = 'scaleX(0)';
+
+      timeoutId = setTimeout(() => {
+        dismissToast();
+      }, remainingTime);
+    }
+
+    function pauseTimer() {
+      clearTimeout(timeoutId);
+      const elapsed = Date.now() - startTime;
+      remainingTime = Math.max(0, remainingTime - elapsed);
+      const computedWidth = progressEl.getBoundingClientRect().width;
+      const totalWidth = toast.getBoundingClientRect().width;
+      const scale = totalWidth > 0 ? (computedWidth / totalWidth) : 0;
+      progressEl.style.transition = 'none';
+      progressEl.style.transform = `scaleX(${scale})`;
+    }
+
+    toast.addEventListener('mouseenter', pauseTimer);
+    toast.addEventListener('mouseleave', () => {
+      if (remainingTime > 0) startTimer();
+    });
+
+    dismissBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissToast();
+    });
+
+    function dismissToast() {
+      clearTimeout(timeoutId);
       toast.style.opacity = '0';
-      toast.style.transform = 'translateX(50px)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
+      toast.style.transform = 'translateX(60px) scale(0.95)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => {
+        try { toast.remove(); } catch (e) {}
+      }, 250);
+    }
+
+    // Initialize progress & timer
+    progressEl.style.transform = 'scaleX(1)';
+    requestAnimationFrame(() => {
+      startTimer();
+    });
+
+    return { dismiss: dismissToast };
+  }
+
+  function showToast(message, type = 'info') {
+    return showNotification({
+      message: escapeHtml(message),
+      type
+    });
   }
 
   // --- Initial Verification & Socket Connection ---
@@ -192,10 +329,41 @@ window.TriboneraApp = (function () {
       }
     });
 
-    // Notification when another user starts streaming
+    // Real-Time Notification when a new user connects / logs in
+    socket.on('user:joined', (user) => {
+      if (user && user.code !== currentUser.code) {
+        if (window.TriboneraSound) {
+          TriboneraSound.play('ding');
+        }
+        showNotification({
+          title: 'Comunidade',
+          message: `<strong>${escapeHtml(user.nickname)}</strong> has joined the community`,
+          avatarText: user.nickname ? user.nickname.charAt(0).toUpperCase() : '👤',
+          type: 'user-join',
+          duration: 5000
+        });
+      }
+    });
+
+    // Real-Time Notification when another user starts streaming
     socket.on('stream:started', (stream) => {
-      if (stream.streamerCode !== currentUser.code) {
-        showToast(`🔴 ${stream.streamerName} começou a compartilhar a tela!`, 'live');
+      if (stream && stream.streamerCode !== currentUser.code) {
+        if (window.TriboneraSound) {
+          TriboneraSound.play('pop');
+        }
+        showNotification({
+          title: 'Transmissão Ao Vivo 🔴',
+          message: `<strong>${escapeHtml(stream.streamerName)}</strong> is now live!`,
+          avatarText: stream.streamerName ? stream.streamerName.charAt(0).toUpperCase() : '🔴',
+          type: 'live',
+          duration: 6500,
+          actionBtn: {
+            text: 'Assistir',
+            onClick: () => {
+              watchStream(stream);
+            }
+          }
+        });
       }
     });
 
@@ -463,6 +631,10 @@ window.TriboneraApp = (function () {
       hasAudio: result.hasAudio
     });
 
+    if (window.TriboneraSound) {
+      TriboneraSound.play('liveStart');
+    }
+
     showToast(result.isVirtual ? 'Transmissão virtual iniciada!' : 'Transmissão iniciada com sucesso!', 'success');
   }
 
@@ -503,6 +675,9 @@ window.TriboneraApp = (function () {
     }
 
     socket.emit('stream:stop');
+    if (window.TriboneraSound) {
+      TriboneraSound.play('leave');
+    }
     showToast('Transmissão encerrada.');
   }
 
@@ -581,6 +756,10 @@ window.TriboneraApp = (function () {
       socket.emit('stream:leave-viewer', {
         streamerSocketId: previousStreamerSocketId
       });
+    }
+
+    if (window.TriboneraSound) {
+      TriboneraSound.play('leave');
     }
 
     videoHeaderBar.classList.add('hidden');
@@ -703,6 +882,34 @@ window.TriboneraApp = (function () {
     });
   }
 
+  // --- Sound Effects Toggle & Preferences ---
+  function setupSoundControl() {
+    if (!btnToggleSound || !window.TriboneraSound) return;
+
+    function updateSoundUI(muted) {
+      const iconOn = btnToggleSound.querySelector('.icon-sound-on');
+      const iconOff = btnToggleSound.querySelector('.icon-sound-off');
+      if (muted) {
+        btnToggleSound.classList.add('muted');
+        btnToggleSound.title = 'Efeitos Sonoros: Silenciados (Clique para ativar)';
+        if (iconOn) iconOn.classList.add('hidden');
+        if (iconOff) iconOff.classList.remove('hidden');
+      } else {
+        btnToggleSound.classList.remove('muted');
+        btnToggleSound.title = 'Efeitos Sonoros: Ativados (Clique para silenciar)';
+        if (iconOn) iconOn.classList.remove('hidden');
+        if (iconOff) iconOff.classList.add('hidden');
+      }
+    }
+
+    TriboneraSound.onMuteChange(updateSoundUI);
+
+    btnToggleSound.addEventListener('click', () => {
+      const isMuted = TriboneraSound.toggleMute();
+      showToast(isMuted ? 'Efeitos sonoros silenciados' : 'Efeitos sonoros ativados', 'info');
+    });
+  }
+
   // Logout
   async function logout() {
     if (!confirm('Deseja sair da sua conta?')) return;
@@ -750,6 +957,7 @@ window.TriboneraApp = (function () {
   }
 
   setupVideoControls();
+  setupSoundControl();
   init();
 
   return {
@@ -757,6 +965,7 @@ window.TriboneraApp = (function () {
     watchStreamByCode,
     leaveCurrentStream,
     showToast,
+    showNotification,
     onScreenShareEndedByBrowser
   };
 })();

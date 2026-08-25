@@ -255,20 +255,39 @@ window.TriboneraWebRTC = (function () {
       };
     }
 
-    const displayMediaOptions = {
-      video: {
-        cursor: 'always',
-        displaySurface: 'monitor',
-        width: { ideal: width, max: 2560 },
-        height: { ideal: height, max: 1440 },
-        frameRate: { ideal: frameRate, max: 60 }
-      },
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
+    const baseVideoOptions = {
+      cursor: 'always',
+      displaySurface: 'monitor',
+      width: { ideal: width, max: 2560 },
+      height: { ideal: height, max: 1440 },
+      frameRate: { ideal: frameRate, max: 60 }
     };
+
+    // Tiered displayMedia options for cross-browser / OS audio compatibility
+    const captureAttempts = [
+      // 1. First attempt: standard system audio (systemAudio + boolean audio true)
+      {
+        video: baseVideoOptions,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          systemAudio: 'include'
+        },
+        systemAudio: 'include',
+        selfBrowserSurface: 'exclude'
+      },
+      // 2. Second attempt: simple boolean audio: true (avoids constraint over-specification errors)
+      {
+        video: baseVideoOptions,
+        audio: true
+      },
+      // 3. Third attempt: video only if audio device/driver was rejected by OS
+      {
+        video: baseVideoOptions,
+        audio: false
+      }
+    ];
 
     try {
       // Check if navigator.mediaDevices and getDisplayMedia exist
@@ -276,7 +295,32 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Captura de tela não suportada neste ambiente');
       }
 
-      localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+      let capturedStream = null;
+      let lastAttemptError = null;
+
+      for (let i = 0; i < captureAttempts.length; i++) {
+        try {
+          capturedStream = await navigator.mediaDevices.getDisplayMedia(captureAttempts[i]);
+          if (capturedStream) break;
+        } catch (attemptErr) {
+          lastAttemptError = attemptErr;
+          console.warn(`Tentativa ${i + 1} de captura falhou:`, attemptErr.name, attemptErr.message);
+          // If user explicitly pressed "Cancel" on browser dialog, stop trying immediately
+          if (attemptErr.name === 'NotAllowedError' && !attemptErr.message?.includes('permissions policy')) {
+            throw attemptErr;
+          }
+          // If it's a policy iframe error, stop trying immediately
+          if (attemptErr.name === 'NotAllowedError' && attemptErr.message?.includes('permissions policy')) {
+            throw attemptErr;
+          }
+        }
+      }
+
+      if (!capturedStream) {
+        throw lastAttemptError || new Error('Não foi possível iniciar a captura');
+      }
+
+      localStream = capturedStream;
 
       // Handle user stopping screen share via browser's built-in "Stop sharing" bar
       localStream.getVideoTracks().forEach(track => {
@@ -287,10 +331,12 @@ window.TriboneraWebRTC = (function () {
         };
       });
 
+      const audioTracksCount = localStream.getAudioTracks().length;
+
       return {
         success: true,
         stream: localStream,
-        hasAudio: localStream.getAudioTracks().length > 0,
+        hasAudio: audioTracksCount > 0,
         resolution: `${height}p`,
         fps: frameRate,
         isVirtual: false
@@ -303,12 +349,19 @@ window.TriboneraWebRTC = (function () {
         err.message?.includes('disallowed')
       );
 
+      let errorMsg = err.message;
+      if (err.name === 'NotAllowedError') {
+        errorMsg = 'Permissão de captura cancelada.';
+      } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
+        errorMsg = 'O dispositivo de áudio não pôde ser iniciado pelo sistema. Dica: selecione "Aba do Chrome" ou verifique se o áudio do sistema está habilitado.';
+      }
+
       return {
         success: false,
         isPermissionsPolicyError: isPolicyDisallowed,
         error: isPolicyDisallowed
           ? 'A captura de tela nativa do sistema requer abertura em Nova Aba devido às diretivas de segurança de quadros (iframe) do navegador.'
-          : (err.name === 'NotAllowedError' ? 'Permissão de captura de tela cancelada.' : err.message)
+          : errorMsg
       };
     }
   }

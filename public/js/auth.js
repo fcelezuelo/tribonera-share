@@ -13,6 +13,9 @@
   const codeLoader = document.getElementById('code-loader');
   const authErrorMsg = document.getElementById('auth-error-msg');
   const authSuccessMsg = document.getElementById('auth-success-msg');
+  const savedCodeHint = document.getElementById('saved-code-hint');
+  const defaultCodeHelper = document.getElementById('default-code-helper');
+  const btnClearSavedCode = document.getElementById('btn-clear-saved-code');
 
   const formNickname = document.getElementById('form-nickname');
   const inputNickname = document.getElementById('input-nickname');
@@ -31,13 +34,40 @@
     return null;
   }
 
-  // Helper to save token in cookie and localStorage
-  function saveSession(token, user) {
+  // Helper to save token in cookie and localStorage, plus cache the login code
+  function saveSession(token, user, code) {
     if (token) {
       localStorage.setItem('tribonera_token', token);
       localStorage.setItem('tribonera_user', JSON.stringify(user));
       document.cookie = `tribonera_token=${token}; max-age=${365 * 24 * 60 * 60}; path=/; SameSite=Lax`;
     }
+    const codeToSave = code || (user && user.code);
+    if (codeToSave) {
+      localStorage.setItem('tribonera_cached_code', codeToSave.toUpperCase());
+    }
+  }
+
+  // Check and restore cached access code
+  function initCachedCode() {
+    const cached = localStorage.getItem('tribonera_cached_code');
+    if (cached && inputCode) {
+      inputCode.value = cached.toUpperCase();
+      if (savedCodeHint) savedCodeHint.classList.remove('hidden');
+      if (defaultCodeHelper) defaultCodeHelper.classList.add('hidden');
+      if (btnClearSavedCode) btnClearSavedCode.classList.remove('hidden');
+    }
+  }
+
+  if (btnClearSavedCode) {
+    btnClearSavedCode.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('tribonera_cached_code');
+      inputCode.value = '';
+      savedCodeHint.classList.add('hidden');
+      defaultCodeHelper.classList.remove('hidden');
+      btnClearSavedCode.classList.add('hidden');
+      inputCode.focus();
+    });
   }
 
   // Show error
@@ -126,7 +156,7 @@
 
       if (data.status === 'existing_user') {
         // Existing registered user - login directly!
-        saveSession(data.token, data.user);
+        saveSession(data.token, data.user, code);
         authSuccessMsg.textContent = `Bem-vindo de volta, ${data.user.nickname}! Redirecionando...`;
         authSuccessMsg.classList.remove('hidden');
         setTimeout(() => {
@@ -135,6 +165,7 @@
       } else if (data.status === 'new_user_required') {
         // First access! Switch to Step 2: Choose permanent nickname
         verifiedCode = data.code;
+        localStorage.setItem('tribonera_cached_code', verifiedCode.toUpperCase());
         displayValidCode.textContent = verifiedCode;
         stepCodeCard.classList.add('hidden');
         stepNicknameCard.classList.remove('hidden');
@@ -176,7 +207,7 @@
         throw new Error(data.error || 'Erro ao registrar usuário.');
       }
 
-      saveSession(data.token, data.user);
+      saveSession(data.token, data.user, verifiedCode);
       window.location.href = '/app';
     } catch (err) {
       showError(nickErrorMsg, err.message);
@@ -186,5 +217,6 @@
   });
 
   // Run on start
+  initCachedCode();
   checkExistingSession();
 })();
