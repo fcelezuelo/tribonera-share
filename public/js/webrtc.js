@@ -143,7 +143,7 @@ window.TriboneraWebRTC = (function () {
       ctx.fillStyle = '#F2F3F5';
       ctx.font = 'bold 16px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('TriboneraShare — Transmissão Virtual de Demonstração (60 FPS)', winX + 85, winY + 30);
+      ctx.fillText('Concord — Transmissão Virtual de Demonstração (60 FPS)', winX + 85, winY + 30);
 
       // Central Content: Animated Live Soundwaves & Game HUD
       const now = new Date();
@@ -222,7 +222,7 @@ window.TriboneraWebRTC = (function () {
   /**
    * 1. Start Screen Sharing (getDisplayMedia)
    */
-  async function startScreenCapture(qualityOption = '1080p30') {
+  async function startScreenCapture(qualityOption = '1080p30', includeAudio = true) {
     let width = 1920;
     let height = 1080;
     let frameRate = 30;
@@ -247,44 +247,57 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Captura de tela não suportada neste ambiente ou navegador.');
       }
 
-      // Standard W3C DisplayMedia options with audio requested
-      const displayMediaOptions = {
-        video: {
-          cursor: 'always',
-          width: { ideal: width, max: 2560 },
-          height: { ideal: height, max: 1440 },
-          frameRate: { ideal: frameRate, max: 30 }
-        },
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          suppressLocalAudioPlayback: false
-        },
-        systemAudio: 'include',
-        selfBrowserSurface: 'exclude',
-        surfaceSwitching: 'include'
-      };
-
       let capturedStream = null;
-      try {
-        capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-      } catch (optErr) {
-        console.warn('Tentativa com opções estendidas de áudio falhou, tentando audio: true básico:', optErr);
-        // Fallback for browsers that don't support extended audio dictionary in displayMedia
-        if (optErr.name !== 'NotAllowedError') {
-          capturedStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-              cursor: 'always',
-              width: { ideal: width },
-              height: { ideal: height },
-              frameRate: { ideal: frameRate }
-            },
-            audio: true
-          });
-        } else {
-          throw optErr;
+
+      if (includeAudio) {
+        // Standard W3C DisplayMedia options with audio requested
+        const displayMediaOptions = {
+          video: {
+            cursor: 'always',
+            width: { ideal: width, max: 2560 },
+            height: { ideal: height, max: 1440 },
+            frameRate: { ideal: frameRate, max: 30 }
+          },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            suppressLocalAudioPlayback: false
+          },
+          systemAudio: 'include',
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include'
+        };
+
+        try {
+          capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+        } catch (optErr) {
+          console.warn('Tentativa com opções estendidas de áudio falhou, tentando audio: true básico:', optErr);
+          if (optErr.name !== 'NotAllowedError') {
+            capturedStream = await navigator.mediaDevices.getDisplayMedia({
+              video: {
+                cursor: 'always',
+                width: { ideal: width },
+                height: { ideal: height },
+                frameRate: { ideal: frameRate }
+              },
+              audio: true
+            });
+          } else {
+            throw optErr;
+          }
         }
+      } else {
+        // Pure video capture without audio device constraints (works with any Window / Monitor)
+        capturedStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always',
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: frameRate }
+          },
+          audio: false
+        });
       }
 
       if (!capturedStream) {
@@ -329,7 +342,7 @@ window.TriboneraWebRTC = (function () {
       if (err.name === 'NotAllowedError' && !isPolicyDisallowed) {
         errorMsg = 'Permissão de captura cancelada pelo usuário.';
       } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
-        errorMsg = 'O dispositivo de áudio não pôde ser iniciado para esta janela. Dica: selecione uma "Aba do Chrome" ou "Tela Inteira" na janela de compartilhamento para transmitir som perfeitamente.';
+        errorMsg = 'Esta janela individual não suporta captura de áudio no Chrome. Selecione uma "Aba do Chrome" / "Tela Inteira" para som, ou desmarque "Incluir Áudio do Sistema" para transmitir esta janela.';
       }
 
       return {

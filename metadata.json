@@ -1,6 +1,6 @@
 {
-  "name": "TriboneraShare",
-  "description": "Compartilhador de tela privado em tempo real inspirado no Go Live do Discord com WebRTC e Socket.IO.",
+  "name": "Concord",
+  "description": "Compartilhamento de tela e streaming em tempo real inspirado no Discord com WebRTC e baixa latência.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

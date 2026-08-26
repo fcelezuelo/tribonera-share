@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TriboneraShare — Sala de Transmissão</title>
+  <title>Concord — Sala de Transmissão</title>
+  <link rel="icon" type="image/png" href="/img/concord_icon.png">
+  <link rel="apple-touch-icon" href="/img/concord_icon.png">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,9 +18,11 @@
   <header class="app-header" id="app-header">
     <div class="header-left">
       <div class="server-badge">
-        <div class="server-icon">TS</div>
+        <div class="server-icon server-icon-concord">
+          <img src="/img/concord_icon.png" alt="Concord" class="server-concord-logo">
+        </div>
         <div class="server-meta">
-          <span class="server-name">TriboneraShare</span>
+          <span class="server-name">Concord</span>
           <span class="channel-current">
             <svg class="hash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4"></path>
@@ -101,6 +105,23 @@
             </select>
           </div>
 
+          <div class="stream-audio-toggle-row">
+            <label class="audio-checkbox-label" for="checkbox-stream-audio" title="Ative para capturar o áudio do sistema/vídeo">
+              <input type="checkbox" id="checkbox-stream-audio" checked>
+              <span class="audio-checkbox-custom"></span>
+              <span class="audio-checkbox-text">
+                <svg class="icon-toggle-audio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+                Incluir Áudio do Sistema
+              </span>
+            </label>
+            <div class="audio-help-hint">
+              <span>💡 Dica de Áudio: selecione <b>Aba do Chrome</b> ou <b>Tela Inteira</b>. Para Janela de app individual, desmarque acima se der erro de áudio.</span>
+            </div>
+          </div>
+
           <button id="btn-start-share" class="btn btn-discord-share">
             <svg class="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -149,7 +170,7 @@
           <span class="footer-status-text" id="footer-user-status">🟢 Online</span>
         </div>
         <div class="footer-controls">
-          <span class="tribo-tag">TriboneraShare v1.0</span>
+          <span class="tribo-tag">Concord v1.0</span>
         </div>
       </div>
     </aside>

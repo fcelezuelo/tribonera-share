@@ -22,7 +22,7 @@ const io = new Server(server, {
   pingInterval: 10000
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
 
 const USERS_FILE = path.join(__dirname, 'users.json');
@@ -806,7 +806,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`=============================================`);
-  console.log(`  TriboneraShare Server rodando na porta ${PORT}`);
+  console.log(`  Concord Server rodando na porta ${PORT}`);
   console.log(`  Painel Admin Code: ${ADMIN_CODE}`);
   console.log(`  Acesse: http://localhost:${PORT}`);
   console.log(`=============================================`);

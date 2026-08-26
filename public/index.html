@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TriboneraShare — Compartilhamento Privado de Tela</title>
+  <title>Concord — Compartilhamento Privado de Tela</title>
+  <link rel="icon" type="image/png" href="/img/concord_icon.png">
+  <link rel="apple-touch-icon" href="/img/concord_icon.png">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,16 +21,11 @@
   <main class="auth-container" id="auth-container">
     <!-- Brand Header -->
     <div class="auth-brand" id="auth-brand">
-      <div class="brand-icon-wrapper">
-        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-          <line x1="8" y1="21" x2="16" y2="21"></line>
-          <line x1="12" y1="17" x2="12" y2="21"></line>
-          <polygon points="10 8 16 11.5 10 15 10 8" fill="currentColor"></polygon>
-        </svg>
+      <div class="brand-icon-wrapper brand-concord-logo-wrapper">
+        <img src="/img/concord_icon.png" alt="Concord Logo" class="brand-concord-logo">
       </div>
-      <h1 class="brand-title">Tribonera<span class="highlight">Share</span></h1>
-      <p class="brand-subtitle">Compartilhamento de tela em tempo real exclusivo para amigos</p>
+      <h1 class="brand-title">Concord</h1>
+      <p class="brand-subtitle">Compartilhamento de tela em tempo real com alta definição e baixa latência</p>
     </div>
 
     <!-- Step 1: Code Verification Card -->
@@ -134,7 +131,7 @@
     <!-- Auto-login verifying overlay -->
     <div id="auth-loading-overlay" class="auth-loading-overlay hidden">
       <div class="spinner-large"></div>
-      <p class="loading-text">Conectando à Tribonera...</p>
+      <p class="loading-text">Conectando ao Concord...</p>
     </div>
   </main>
 

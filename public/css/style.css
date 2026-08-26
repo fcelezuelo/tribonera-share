@@ -177,12 +177,32 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 54px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--accent-blurple), #4752c4);
-  box-shadow: 0 8px 20px rgba(88, 101, 242, 0.35);
-  margin-bottom: 12px;
+  width: 84px;
+  height: 84px;
+  border-radius: 20px;
+  background: transparent;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  margin-bottom: 14px;
+  overflow: hidden;
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.brand-icon-wrapper:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 14px 34px rgba(235, 75, 45, 0.25);
+}
+
+.brand-concord-logo-wrapper {
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+}
+
+.brand-concord-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
 }
 
 .brand-icon {
@@ -565,8 +585,8 @@ html, body {
 }
 
 .server-icon {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   background: var(--accent-blurple);
   border-radius: var(--radius-md);
   display: flex;
@@ -576,6 +596,20 @@ html, body {
   font-size: 13px;
   color: #fff;
   letter-spacing: -0.5px;
+  overflow: hidden;
+}
+
+.server-icon-concord {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.server-concord-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .server-meta {
@@ -857,6 +891,55 @@ html, body {
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
+}
+
+.stream-audio-toggle-row {
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.audio-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.audio-checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent-blurple);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.audio-checkbox-text {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-header);
+}
+
+.icon-toggle-audio {
+  width: 13px;
+  height: 13px;
+  color: var(--accent-blurple);
+}
+
+.audio-help-hint {
+  margin-top: 6px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.audio-help-hint b {
+  color: var(--text-normal);
 }
 
 .btn-discord-share {

@@ -19,6 +19,7 @@ window.TriboneraApp = (function () {
   const btnEmptyStartShare = document.getElementById('btn-empty-start-share');
   const btnStopShare = document.getElementById('btn-stop-share');
   const selectQuality = document.getElementById('select-stream-quality');
+  const checkboxStreamAudio = document.getElementById('checkbox-stream-audio');
   const myStreamTimer = document.getElementById('my-stream-timer');
   const myStreamSpecs = document.getElementById('my-stream-specs');
   const countActiveStreams = document.getElementById('count-active-streams');
@@ -290,7 +291,7 @@ window.TriboneraApp = (function () {
     });
 
     socket.on('connect', () => {
-      console.log('Conectado ao TriboneraShare via Socket.IO');
+      console.log('Conectado ao Concord via Socket.IO');
       myStatusDot.className = 'status-indicator online';
       footerUserStatus.textContent = '🟢 Online';
     });
@@ -585,7 +586,8 @@ window.TriboneraApp = (function () {
     }
 
     const quality = selectQuality ? selectQuality.value : '1080p30';
-    const result = await TriboneraWebRTC.startScreenCapture(quality);
+    const includeAudio = checkboxStreamAudio ? checkboxStreamAudio.checked : true;
+    const result = await TriboneraWebRTC.startScreenCapture(quality, includeAudio);
 
     if (!result.success) {
       if (result.isPermissionsPolicyError) {
