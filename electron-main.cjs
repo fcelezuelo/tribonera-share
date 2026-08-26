@@ -1,14 +1,45 @@
 const { app, BrowserWindow, ipcMain, desktopCapturer, session, dialog } = require('electron');
 const path = require('path');
-const { autoUpdater } = require('electron-updater');
+
+let autoUpdater = null;
+try {
+  const updaterModule = require('electron-updater');
+  autoUpdater = updaterModule.autoUpdater;
+} catch (e) {
+  console.warn('[AutoUpdater] Módulo electron-updater não carregado no ambiente atual:', e.message);
+}
 
 // Configuração do Servidor Remoto ou Local
-// Substitua pela URL de produção (ex: sua URL do Render) quando for empacotar para seus amigos/usuários
-const SERVER_URL = process.env.CONCORD_SERVER_URL || 'https://ais-dev-jzoxi2g3twnhxspukx5jxz-85134636587.us-east5.run.app';
+// Se você tiver uma URL pública (ex: Render/Railway), defina na variável CONCORD_SERVER_URL.
+// Por padrão, o Electron inicia o servidor interno localmente em http://localhost:3000
+const REMOTE_SERVER_URL = process.env.CONCORD_SERVER_URL || null;
+let serverPort = process.env.PORT || 3000;
+let isEmbeddedServerRunning = false;
 
 let mainWindow = null;
 
-function createWindow() {
+async function ensureServerRunning() {
+  if (REMOTE_SERVER_URL) {
+    return REMOTE_SERVER_URL;
+  }
+
+  if (!isEmbeddedServerRunning) {
+    try {
+      // Inicia o servidor interno do Concord automaticamente
+      await import('./server.js');
+      isEmbeddedServerRunning = true;
+      console.log(`[Concord] Servidor interno iniciado na porta ${serverPort}`);
+    } catch (err) {
+      console.error('[Concord] Erro ao iniciar servidor embutido:', err);
+    }
+  }
+
+  return `http://localhost:${serverPort}`;
+}
+
+async function createWindow() {
+  const targetURL = await ensureServerRunning();
+
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 840,
@@ -63,15 +94,15 @@ function createWindow() {
     }
   });
 
-  // Carrega a URL do servidor
-  mainWindow.loadURL(SERVER_URL);
+  // Carrega a URL do Concord
+  mainWindow.loadURL(targetURL);
 
   // Tratamento de queda de conexão / recarregamento automático
   mainWindow.webContents.on('did-fail-load', () => {
-    console.log('Falha ao conectar no servidor. Tentando reconectar em 5 segundos...');
+    console.log('Tentando reconectar ao Concord em 3 segundos...');
     setTimeout(() => {
-      if (mainWindow) mainWindow.loadURL(SERVER_URL);
-    }, 5000);
+      if (mainWindow) mainWindow.loadURL(targetURL);
+    }, 3000);
   });
 
   mainWindow.on('closed', () => {
@@ -83,6 +114,10 @@ function createWindow() {
 // 🔄 SISTEMA DE AUTO-UPDATE (Identifica mudanças e atualiza para todos)
 // -------------------------------------------------------------------
 function setupAutoUpdater() {
+  if (!autoUpdater) {
+    console.log('[AutoUpdater] autoUpdater não disponível neste build.');
+    return;
+  }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
@@ -165,7 +200,9 @@ app.whenReady().then(() => {
 
   // Checa atualização no início
   setTimeout(() => {
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    if (autoUpdater) {
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }
   }, 3000);
 });
 

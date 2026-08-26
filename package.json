@@ -26,16 +26,13 @@
       "public/**/*",
       "package.json"
     ],
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "SEU_USUARIO_GITHUB",
-        "repo": "SEU_REPOSITORIO"
-      }
-    ],
     "win": {
-      "target": "nsis",
-      "icon": "public/img/concord_icon.png"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/img/concord_icon.png",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -53,6 +50,7 @@
     "clsx": "^2.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "electron-updater": "^6.3.9",
     "express": "^5.2.1",
     "lucide-react": "^0.553.0",
     "motion": "^12.23.24",
@@ -69,6 +67,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "eslint": "9.39.1",
     "eslint-config-next": "16.0.8",
     "firebase-tools": "^15.0.0",
