@@ -25,9 +25,10 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
 
-const USERS_FILE = path.join(__dirname, 'users.json');
-const CODES_FILE = path.join(__dirname, 'codes.json');
-const STREAMS_FILE = path.join(__dirname, 'streams.json');
+const DATA_DIR = process.env.CONCORD_DATA_DIR || __dirname;
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CODES_FILE = path.join(DATA_DIR, 'codes.json');
+const STREAMS_FILE = path.join(DATA_DIR, 'streams.json');
 
 // --- JSON Helpers ---
 function readJSON(filePath, defaultValue) {
@@ -46,6 +47,10 @@ function readJSON(filePath, defaultValue) {
 
 function writeJSON(filePath, data) {
   try {
+    const parentDir = path.dirname(filePath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);

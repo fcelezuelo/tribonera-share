@@ -1,5 +1,7 @@
 const { app, BrowserWindow, ipcMain, desktopCapturer, session, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 let autoUpdater = null;
 try {
@@ -18,21 +20,48 @@ let isEmbeddedServerRunning = false;
 
 let mainWindow = null;
 
+function copyDefaultDataFiles(userDataPath) {
+  try {
+    const files = ['codes.json', 'users.json', 'streams.json'];
+    for (const f of files) {
+      const targetPath = path.join(userDataPath, f);
+      if (!fs.existsSync(targetPath)) {
+        const sourcePath = path.join(__dirname, f);
+        if (fs.existsSync(sourcePath)) {
+          fs.copyFileSync(sourcePath, targetPath);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Concord] Aviso ao copiar dados padrão:', err.message);
+  }
+}
+
 async function ensureServerRunning() {
   if (REMOTE_SERVER_URL) {
     return REMOTE_SERVER_URL;
   }
 
+  const userDataPath = app.getPath('userData');
+  process.env.CONCORD_DATA_DIR = userDataPath;
+  process.env.PORT = String(serverPort);
+
+  copyDefaultDataFiles(userDataPath);
+
   if (!isEmbeddedServerRunning) {
     try {
-      // Inicia o servidor interno do Concord automaticamente
-      await import('./server.js');
+      const serverFilePath = path.join(__dirname, 'server.js');
+      const serverUrl = pathToFileURL(serverFilePath).href;
+      await import(serverUrl);
       isEmbeddedServerRunning = true;
       console.log(`[Concord] Servidor interno iniciado na porta ${serverPort}`);
     } catch (err) {
       console.error('[Concord] Erro ao iniciar servidor embutido:', err);
     }
   }
+
+  // Pequeno delay para garantir que o express escutou na porta
+  await new Promise(r => setTimeout(r, 800));
 
   return `http://localhost:${serverPort}`;
 }
@@ -96,6 +125,16 @@ async function createWindow() {
 
   // Carrega a URL do Concord
   mainWindow.loadURL(targetURL);
+
+  // Teclas de atalho para recarregar (F5 ou Ctrl+R) e Inspecionar (F12 ou Ctrl+Shift+I)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools();
+    }
+    if ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+      mainWindow.reload();
+    }
+  });
 
   // Tratamento de queda de conexão / recarregamento automático
   mainWindow.webContents.on('did-fail-load', () => {

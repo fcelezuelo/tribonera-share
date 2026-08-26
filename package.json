@@ -23,6 +23,10 @@
     "files": [
       "electron-main.cjs",
       "preload.js",
+      "server.js",
+      "codes.json",
+      "users.json",
+      "streams.json",
       "public/**/*",
       "package.json"
     ],
