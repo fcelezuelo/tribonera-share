@@ -247,69 +247,57 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Captura de tela não suportada neste ambiente ou navegador.');
       }
 
+      // Standard W3C DisplayMedia options with audio requested
+      const displayMediaOptions = {
+        video: {
+          cursor: 'always',
+          width: { ideal: width, max: 2560 },
+          height: { ideal: height, max: 1440 },
+          frameRate: { ideal: frameRate, max: 30 }
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          suppressLocalAudioPlayback: false
+        },
+        systemAudio: 'include',
+        selfBrowserSurface: 'exclude',
+        surfaceSwitching: 'include'
+      };
+
       let capturedStream = null;
-      let captureError = null;
-
-      // Strategy 1: Try with requested resolution/fps and audio enabled
       try {
-        capturedStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: width },
-            height: { ideal: height },
-            frameRate: { ideal: frameRate }
-          },
-          audio: true
-        });
-      } catch (err1) {
-        console.warn('Tentativa 1 com áudio falhou:', err1.name, err1.message);
-        captureError = err1;
-
-        // If user cancelled on the prompt, do not retry
-        if (err1.name === 'NotAllowedError' && !err1.message?.includes('permissions policy') && !err1.message?.includes('display-capture')) {
-          throw err1;
-        }
-
-        // If iframe permission policy blocked it, do not retry
-        if (err1.name === 'NotAllowedError' && (err1.message?.includes('permissions policy') || err1.message?.includes('display-capture'))) {
-          throw err1;
-        }
-
-        // Strategy 2: If audio source failed (e.g. system rejected audio capture), retry without audio constraint
-        try {
+        capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+      } catch (optErr) {
+        console.warn('Tentativa com opções estendidas de áudio falhou, tentando audio: true básico:', optErr);
+        // Fallback for browsers that don't support extended audio dictionary in displayMedia
+        if (optErr.name !== 'NotAllowedError') {
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
+              cursor: 'always',
               width: { ideal: width },
               height: { ideal: height },
               frameRate: { ideal: frameRate }
             },
-            audio: false
+            audio: true
           });
-        } catch (err2) {
-          console.warn('Tentativa 2 sem áudio falhou:', err2.name, err2.message);
-          captureError = err2;
-
-          if (err2.name === 'NotAllowedError') {
-            throw err2;
-          }
-
-          // Strategy 3: Bare minimum constraint (pure video: true) to bypass any strict OS driver restrictions
-          try {
-            capturedStream = await navigator.mediaDevices.getDisplayMedia({
-              video: true,
-              audio: false
-            });
-          } catch (err3) {
-            console.error('Todas as tentativas de captura falharam:', err3);
-            throw err3;
-          }
+        } else {
+          throw optErr;
         }
       }
 
       if (!capturedStream) {
-        throw captureError || new Error('Não foi possível obter a tela');
+        throw new Error('Não foi possível obter o stream de tela.');
       }
 
       localStream = capturedStream;
+
+      // Ensure all tracks are enabled
+      localStream.getTracks().forEach(track => {
+        track.enabled = true;
+        console.log(`[WebRTC] Trilha capturada: kind=${track.kind}, label=${track.label}, enabled=${track.enabled}`);
+      });
 
       // Handle user stopping screen share via browser's built-in "Stop sharing" bar
       localStream.getVideoTracks().forEach(track => {
@@ -341,7 +329,7 @@ window.TriboneraWebRTC = (function () {
       if (err.name === 'NotAllowedError' && !isPolicyDisallowed) {
         errorMsg = 'Permissão de captura cancelada pelo usuário.';
       } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
-        errorMsg = 'O dispositivo de áudio não pôde ser iniciado. Dica: selecione uma "Aba do Chrome" na janela de compartilhamento para transmitir som do sistema.';
+        errorMsg = 'O dispositivo de áudio não pôde ser iniciado para esta janela. Dica: selecione uma "Aba do Chrome" ou "Tela Inteira" na janela de compartilhamento para transmitir som perfeitamente.';
       }
 
       return {
@@ -375,8 +363,9 @@ window.TriboneraWebRTC = (function () {
     const pc = new RTCPeerConnection(rtcConfig);
     streamerPeerConnections.set(viewerSocketId, pc);
 
-    // Add all local tracks (video and audio)
+    // Add all local tracks (video and audio) to RTCPeerConnection
     localStream.getTracks().forEach(track => {
+      console.log(`[WebRTC] Streamer adicionando trilha ${track.kind} (${track.label}) ao PeerConnection para espectador ${viewerSocketId}`);
       pc.addTrack(track, localStream);
     });
 
@@ -400,12 +389,9 @@ window.TriboneraWebRTC = (function () {
       }
     };
 
-    // Create SDP Offer
+    // Create standard SDP Offer with audio and video
     try {
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: false,
-        offerToReceiveVideo: false
-      });
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       socket.emit('webrtc:offer', {
@@ -455,10 +441,17 @@ window.TriboneraWebRTC = (function () {
 
     // When remote track arrives, attach to video element and trigger play
     viewerPeerConnection.ontrack = (event) => {
-      console.log('Recebida trilha remota:', event.track.kind, event.streams);
+      console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams?.length}`);
+
+      if (event.track.kind === 'audio') {
+        event.track.enabled = true;
+      }
+
       if (remoteVideoElement) {
         if (event.streams && event.streams[0]) {
-          remoteVideoElement.srcObject = event.streams[0];
+          if (remoteVideoElement.srcObject !== event.streams[0]) {
+            remoteVideoElement.srcObject = event.streams[0];
+          }
         } else {
           if (!remoteVideoElement.srcObject) {
             remoteVideoElement.srcObject = new MediaStream();
@@ -466,11 +459,11 @@ window.TriboneraWebRTC = (function () {
           remoteVideoElement.srcObject.addTrack(event.track);
         }
 
-        // Handle autoplay policies
+        // Handle playback and browser autoplay restrictions
         const playPromise = remoteVideoElement.play();
         if (playPromise !== undefined) {
           playPromise.catch(err => {
-            console.warn('Autoplay bloqueado pelo navegador, tentando mudo:', err);
+            console.warn('Autoplay com som bloqueado pelo navegador, silenciando para iniciar reprodução:', err);
             remoteVideoElement.muted = true;
             remoteVideoElement.play().catch(e => console.error('Falha ao reproduzir vídeo:', e));
           });

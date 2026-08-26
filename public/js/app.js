@@ -614,7 +614,7 @@ window.TriboneraApp = (function () {
     // Update left sidebar controls
     viewNotStreaming.classList.add('hidden');
     viewIsStreaming.classList.remove('hidden');
-    myStreamSpecs.textContent = `${result.resolution} @ ${result.fps} FPS`;
+    myStreamSpecs.textContent = `${result.resolution} @ ${result.fps} FPS ${result.hasAudio ? '• 🔊 Áudio' : ''}`;
 
     // Start stream timer
     streamStartTime = Date.now();
@@ -729,7 +729,14 @@ window.TriboneraApp = (function () {
     currentStreamerAvatar.textContent = stream.streamerName.charAt(0).toUpperCase();
     currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(stream.streamerName)}`;
     currentStreamerTitle.textContent = `Tela de ${stream.streamerName}`;
-    currentStreamerSpecs.textContent = `${stream.resolution} • ${stream.fps} FPS • WebRTC Direct`;
+    currentStreamerSpecs.textContent = `${stream.resolution} • ${stream.fps} FPS • ${stream.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Som'} • WebRTC Direct`;
+
+    // Ensure audio volume is at 100% and unmuted for remote playback
+    remoteVideo.muted = false;
+    remoteVideo.volume = 1;
+    if (volumeSlider) volumeSlider.value = 1;
+    if (iconVolumeHigh) iconVolumeHigh.classList.remove('hidden');
+    if (iconVolumeMuted) iconVolumeMuted.classList.add('hidden');
 
     updateViewersList(stream.viewers || []);
 
