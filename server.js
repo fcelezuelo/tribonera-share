@@ -22,7 +22,7 @@ const io = new Server(server, {
   pingInterval: 10000
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
 
 const USERS_FILE = path.join(__dirname, 'users.json');
