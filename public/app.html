@@ -97,29 +97,15 @@
         <!-- Not streaming view -->
         <div id="view-not-streaming" class="stream-action-block">
           <div class="stream-quality-selector">
-            <label class="quality-label">Qualidade:</label>
+            <label class="quality-label">Qualidade & Taxa de Quadros:</label>
             <select id="select-stream-quality" class="quality-select">
-              <option value="1080p30" selected>1080p Full HD @ 30 FPS (Recomendado)</option>
+              <option value="1080p60" selected>⚡ 1080p Full HD @ 60 FPS (Ultra Fluido)</option>
+              <option value="1080p30">1080p Full HD @ 30 FPS (Padrão)</option>
+              <option value="720p60">⚡ 720p HD @ 60 FPS (Rápido e Fluido)</option>
               <option value="720p30">720p HD @ 30 FPS (Mais Leve)</option>
+              <option value="1440p60">⚡ 1440p 2K @ 60 FPS (Máxima Definição)</option>
               <option value="1440p30">1440p 2K @ 30 FPS (Alta Definição)</option>
             </select>
-          </div>
-
-          <div class="stream-audio-toggle-row">
-            <label class="audio-checkbox-label" for="checkbox-stream-audio" title="Ative para capturar o áudio do sistema/vídeo">
-              <input type="checkbox" id="checkbox-stream-audio" checked>
-              <span class="audio-checkbox-custom"></span>
-              <span class="audio-checkbox-text">
-                <svg class="icon-toggle-audio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
-                Incluir Áudio do Sistema
-              </span>
-            </label>
-            <div class="audio-help-hint">
-              <span>💡 Dica de Áudio: selecione <b>Aba do Chrome</b> ou <b>Tela Inteira</b>. Para Janela de app individual, desmarque acima se der erro de áudio.</span>
-            </div>
           </div>
 
           <button id="btn-start-share" class="btn btn-discord-share">

@@ -1,0 +1,182 @@
+const { app, BrowserWindow, ipcMain, desktopCapturer, session, dialog } = require('electron');
+const path = require('path');
+const { autoUpdater } = require('electron-updater');
+
+// Configuração do Servidor Remoto ou Local
+// Substitua pela URL de produção (ex: sua URL do Render) quando for empacotar para seus amigos/usuários
+const SERVER_URL = process.env.CONCORD_SERVER_URL || 'https://ais-dev-jzoxi2g3twnhxspukx5jxz-85134636587.us-east5.run.app';
+
+let mainWindow = null;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1360,
+    height: 840,
+    minWidth: 980,
+    minHeight: 640,
+    backgroundColor: '#1E1F22',
+    icon: path.join(__dirname, 'public/img/concord_icon.png'),
+    title: 'Concord',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+      backgroundThrottling: false // Impede travamentos de FPS quando o Concord estiver em segundo plano
+    }
+  });
+
+  // Remove o menu superior padrão do Windows para estilo limpo do Discord
+  mainWindow.setMenuBarVisibility(false);
+
+  // Permissões automáticas para WebRTC (Microfone, Captura de Tela e Áudio)
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'notifications', 'pointerLock', 'fullscreen'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  // Tratador nativo de getDisplayMedia do Electron com captura de som do sistema (loopback WASAPI/CoreAudio)
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 180 },
+        fetchWindowIcons: true
+      });
+
+      // Abre modal nativo ou escolhe a tela principal com áudio loopback habilitado
+      if (sources.length > 0) {
+        callback({
+          video: sources[0],
+          audio: 'loopback' // Habilita captura de som estéreo total do sistema operacional
+        });
+      } else {
+        callback(null);
+      }
+    } catch (err) {
+      console.error('Erro no setDisplayMediaRequestHandler:', err);
+      callback(null);
+    }
+  });
+
+  // Carrega a URL do servidor
+  mainWindow.loadURL(SERVER_URL);
+
+  // Tratamento de queda de conexão / recarregamento automático
+  mainWindow.webContents.on('did-fail-load', () => {
+    console.log('Falha ao conectar no servidor. Tentando reconectar em 5 segundos...');
+    setTimeout(() => {
+      if (mainWindow) mainWindow.loadURL(SERVER_URL);
+    }, 5000);
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+// -------------------------------------------------------------------
+// 🔄 SISTEMA DE AUTO-UPDATE (Identifica mudanças e atualiza para todos)
+// -------------------------------------------------------------------
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[AutoUpdater] Verificando se há novas versões...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Nova versão encontrada:', info.version);
+    if (mainWindow) {
+      mainWindow.webContents.send('updater-message', {
+        status: 'available',
+        version: info.version
+      });
+    }
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[AutoUpdater] Aplicativo está na versão mais recente.');
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Download da atualização concluído.');
+    if (mainWindow) {
+      mainWindow.webContents.send('updater-message', {
+        status: 'downloaded',
+        version: info.version
+      });
+    }
+
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Concord - Atualização Pronta',
+      message: `Uma nova versão (${info.version}) foi baixada!`,
+      detail: 'O Concord será reiniciado para aplicar as melhorias.',
+      buttons: ['Reiniciar Agora', 'Depois']
+    }).then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Erro ao atualizar:', err);
+  });
+
+  // Checa por atualizações a cada 15 minutos
+  setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }, 15 * 60 * 1000);
+}
+
+// -------------------------------------------------------------------
+// IPC Handlers: Seleção visual de telas / janelas e fontes de captura
+// -------------------------------------------------------------------
+ipcMain.handle('get-desktop-sources', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true
+    });
+    return sources.map(src => ({
+      id: src.id,
+      name: src.name,
+      thumbnail: src.thumbnail.toDataURL(),
+      appIcon: src.appIcon ? src.appIcon.toDataURL() : null
+    }));
+  } catch (err) {
+    console.error('Erro ao listar sources do desktop:', err);
+    return [];
+  }
+});
+
+// Inicialização da Aplicação
+app.whenReady().then(() => {
+  createWindow();
+  setupAutoUpdater();
+
+  // Checa atualização no início
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }, 3000);
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});

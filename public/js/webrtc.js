@@ -31,6 +31,8 @@ window.TriboneraWebRTC = (function () {
 
   // Streamer State
   let localStream = null;
+  let currentStreamFps = 60;
+  let currentStreamResolution = '1080p';
   // Map of viewerSocketId => RTCPeerConnection
   const streamerPeerConnections = new Map();
   // Map of viewerSocketId => RTCIceCandidate[] (queue for candidates received before remoteDescription)
@@ -222,25 +224,37 @@ window.TriboneraWebRTC = (function () {
   /**
    * 1. Start Screen Sharing (getDisplayMedia)
    */
-  async function startScreenCapture(qualityOption = '1080p30', includeAudio = true) {
+  async function startScreenCapture(qualityOption = '1080p60') {
     let width = 1920;
     let height = 1080;
-    let frameRate = 30;
+    let frameRate = 60;
 
     switch (qualityOption) {
+      case '1440p60':
+        width = 2560; height = 1440; frameRate = 60;
+        break;
       case '1440p30':
         width = 2560; height = 1440; frameRate = 30;
         break;
+      case '1080p60':
+        width = 1920; height = 1080; frameRate = 60;
+        break;
       case '1080p30':
         width = 1920; height = 1080; frameRate = 30;
+        break;
+      case '720p60':
+        width = 1280; height = 720; frameRate = 60;
         break;
       case '720p30':
         width = 1280; height = 720; frameRate = 30;
         break;
       default:
-        width = 1920; height = 1080; frameRate = 30;
+        width = 1920; height = 1080; frameRate = 60;
         break;
     }
+
+    currentStreamFps = frameRate;
+    currentStreamResolution = `${height}p`;
 
     try {
       if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
@@ -249,52 +263,40 @@ window.TriboneraWebRTC = (function () {
 
       let capturedStream = null;
 
-      if (includeAudio) {
-        // Standard W3C DisplayMedia options with audio requested
-        const displayMediaOptions = {
-          video: {
-            cursor: 'always',
-            width: { ideal: width, max: 2560 },
-            height: { ideal: height, max: 1440 },
-            frameRate: { ideal: frameRate, max: 30 }
-          },
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            suppressLocalAudioPlayback: false
-          },
-          systemAudio: 'include',
-          selfBrowserSurface: 'exclude',
-          surfaceSwitching: 'include'
-        };
+      // Primary attempt: Request screen capture with full 60 FPS (or selected FPS) and system audio
+      const displayMediaOptions = {
+        video: {
+          cursor: 'always',
+          width: { ideal: width, max: width >= 2560 ? 2560 : 1920 },
+          height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
+          frameRate: { ideal: frameRate, max: frameRate }
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          suppressLocalAudioPlayback: false
+        },
+        systemAudio: 'include',
+        selfBrowserSurface: 'exclude',
+        surfaceSwitching: 'include'
+      };
 
-        try {
-          capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-        } catch (optErr) {
-          console.warn('Tentativa com opções estendidas de áudio falhou, tentando audio: true básico:', optErr);
-          if (optErr.name !== 'NotAllowedError') {
-            capturedStream = await navigator.mediaDevices.getDisplayMedia({
-              video: {
-                cursor: 'always',
-                width: { ideal: width },
-                height: { ideal: height },
-                frameRate: { ideal: frameRate }
-              },
-              audio: true
-            });
-          } else {
-            throw optErr;
-          }
+      try {
+        capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+      } catch (optErr) {
+        if (optErr.name === 'NotAllowedError') {
+          // User clicked cancel in browser popup
+          throw optErr;
         }
-      } else {
-        // Pure video capture without audio device constraints (works with any Window / Monitor)
+        console.warn('Tentativa com áudio automático falhou (ex: janela individual no Chrome), tentando vídeo direto em ' + frameRate + ' FPS:', optErr);
+        // Graceful fallback for windows that don't support audio capture in Chrome
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
             cursor: 'always',
             width: { ideal: width },
             height: { ideal: height },
-            frameRate: { ideal: frameRate }
+            frameRate: { ideal: frameRate, max: frameRate }
           },
           audio: false
         });
@@ -341,8 +343,6 @@ window.TriboneraWebRTC = (function () {
       let errorMsg = err.message || 'Erro ao iniciar transmissão';
       if (err.name === 'NotAllowedError' && !isPolicyDisallowed) {
         errorMsg = 'Permissão de captura cancelada pelo usuário.';
-      } else if (err.message && (err.message.includes('Could not start audio source') || err.name === 'AbortError' || err.name === 'NotReadableError')) {
-        errorMsg = 'Esta janela individual não suporta captura de áudio no Chrome. Selecione uma "Aba do Chrome" / "Tela Inteira" para som, ou desmarque "Incluir Áudio do Sistema" para transmitir esta janela.';
       }
 
       return {
@@ -379,7 +379,28 @@ window.TriboneraWebRTC = (function () {
     // Add all local tracks (video and audio) to RTCPeerConnection
     localStream.getTracks().forEach(track => {
       console.log(`[WebRTC] Streamer adicionando trilha ${track.kind} (${track.label}) ao PeerConnection para espectador ${viewerSocketId}`);
-      pc.addTrack(track, localStream);
+      const sender = pc.addTrack(track, localStream);
+
+      // Optimize video sender for high 60 FPS transmission
+      if (track.kind === 'video' && sender && sender.getParameters) {
+        try {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}];
+          }
+          if (currentStreamFps >= 60) {
+            params.encodings[0].maxFramerate = 60;
+            params.encodings[0].maxBitrate = 6000000;
+          } else {
+            params.encodings[0].maxFramerate = 30;
+            params.encodings[0].maxBitrate = 3500000;
+          }
+          params.degradationPreference = 'maintain-framerate';
+          sender.setParameters(params).catch(e => console.warn('setParameters note:', e));
+        } catch (e) {
+          console.warn('Sender parameter config note:', e);
+        }
+      }
     });
 
     // Handle ICE Candidate generation

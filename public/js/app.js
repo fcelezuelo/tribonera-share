@@ -263,6 +263,17 @@ window.TriboneraApp = (function () {
       currentUser = data.user;
       setupUserProfileUI(currentUser);
       connectSocket(token);
+
+      // Listener para notificações do Electron AutoUpdater
+      if (window.electronAPI && typeof window.electronAPI.onUpdaterMessage === 'function') {
+        window.electronAPI.onUpdaterMessage((info) => {
+          if (info.status === 'available') {
+            showToast(`🚀 Baixando nova versão (${info.version}) em segundo plano...`, 'info');
+          } else if (info.status === 'downloaded') {
+            showToast(`✨ Nova versão (${info.version}) pronta para instalar!`, 'success');
+          }
+        });
+      }
     } catch (err) {
       console.error('Erro na inicialização:', err);
       showToast('Erro de conexão com o servidor.', 'error');
@@ -585,9 +596,8 @@ window.TriboneraApp = (function () {
       leaveCurrentStream();
     }
 
-    const quality = selectQuality ? selectQuality.value : '1080p30';
-    const includeAudio = checkboxStreamAudio ? checkboxStreamAudio.checked : true;
-    const result = await TriboneraWebRTC.startScreenCapture(quality, includeAudio);
+    const quality = selectQuality ? selectQuality.value : '1080p60';
+    const result = await TriboneraWebRTC.startScreenCapture(quality);
 
     if (!result.success) {
       if (result.isPermissionsPolicyError) {
