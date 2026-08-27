@@ -730,6 +730,9 @@ window.TriboneraApp = (function () {
   let cachedDesktopSources = [];
   let currentPickerType = 'screen';
 
+  const pickerNavTabsWrap = document.getElementById('picker-nav-tabs-wrap');
+  const qualityPresetsGrid = document.getElementById('quality-presets-grid');
+
   async function openScreenPickerModal() {
     if (isCurrentlyStreaming) return;
 
@@ -738,9 +741,12 @@ window.TriboneraApp = (function () {
     }
 
     // Sync options from sidebar or defaults
-    if (modalStreamQuality && selectQuality) {
-      modalStreamQuality.value = selectQuality.value || '1080p60';
+    const activeQuality = (selectQuality && selectQuality.value) || (modalStreamQuality && modalStreamQuality.value) || '1080p60';
+    if (modalStreamQuality) {
+      modalStreamQuality.value = activeQuality;
     }
+    updateQualityPresetButtons(activeQuality);
+
     if (modalOptSysAudio && checkboxSystemAudio) {
       modalOptSysAudio.checked = checkboxSystemAudio.checked;
     }
@@ -758,11 +764,12 @@ window.TriboneraApp = (function () {
 
     // Check if Electron desktopCapturer is available
     if (window.electronAPI && typeof window.electronAPI.getDesktopSources === 'function') {
+      if (pickerNavTabsWrap) pickerNavTabsWrap.classList.remove('hidden');
       if (pickerSourcesGrid) {
         pickerSourcesGrid.innerHTML = `
           <div class="sources-loading-state">
             <div class="spinner"></div>
-            <span>Buscando telas e janelas disponíveis no seu computador...</span>
+            <span>Buscando telas e janelas no seu computador...</span>
           </div>
         `;
       }
@@ -772,30 +779,91 @@ window.TriboneraApp = (function () {
         renderPickerSources(currentPickerType);
       } catch (err) {
         console.error('Erro ao buscar desktop sources:', err);
-        if (pickerSourcesGrid) {
-          pickerSourcesGrid.innerHTML = `
-            <div class="sources-empty-state">
-              <span>⚠️ Não foi possível listar as janelas automaticamente. O seletor do sistema será aberto ao confirmar.</span>
-            </div>
-          `;
-        }
+        renderBrowserSourceCards();
       }
     } else {
       // In standard browser environment
-      if (pickerSourcesGrid) {
-        pickerSourcesGrid.innerHTML = `
-          <div class="source-card selected" data-source-id="browser_display">
-            <div class="source-card-thumb-wrap">
-              <span class="source-card-thumb-placeholder">🖥️</span>
-              <div class="source-selected-badge">✓</div>
-            </div>
-            <div class="source-card-info">
-              <span class="source-card-name">Escolher Tela / Janela no Navegador</span>
-            </div>
-          </div>
-        `;
-      }
+      if (pickerNavTabsWrap) pickerNavTabsWrap.classList.add('hidden');
+      renderBrowserSourceCards();
     }
+  }
+
+  function updateQualityPresetButtons(quality) {
+    if (!qualityPresetsGrid) return;
+    const buttons = qualityPresetsGrid.querySelectorAll('.quality-preset-btn');
+    buttons.forEach(btn => {
+      if (btn.getAttribute('data-quality') === quality) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  function renderBrowserSourceCards() {
+    if (!pickerSourcesGrid) return;
+    selectedDesktopSourceId = 'browser_display';
+
+    pickerSourcesGrid.innerHTML = `
+      <div class="source-card selected" data-source-type="screen">
+        <div class="source-card-thumb-wrap">
+          <span class="source-card-thumb-placeholder">🖥️</span>
+          <span class="source-card-badge">Recomendado</span>
+          <div class="source-selected-badge">✓</div>
+        </div>
+        <div class="source-card-info">
+          <div class="source-card-title-row">
+            <span class="source-card-name">Tela Inteira / Monitor</span>
+          </div>
+          <span class="source-card-desc">Ideal para jogos e transmissão de todo o sistema operacional</span>
+        </div>
+      </div>
+
+      <div class="source-card" data-source-type="window">
+        <div class="source-card-thumb-wrap">
+          <span class="source-card-thumb-placeholder">🪟</span>
+          <span class="source-card-badge">Privacidade</span>
+        </div>
+        <div class="source-card-info">
+          <div class="source-card-title-row">
+            <span class="source-card-name">Janela de Aplicativo</span>
+          </div>
+          <span class="source-card-desc">Transmita apenas um jogo ou programa específico sem mostrar o resto</span>
+        </div>
+      </div>
+
+      <div class="source-card" data-source-type="tab">
+        <div class="source-card-thumb-wrap">
+          <span class="source-card-thumb-placeholder">🌐</span>
+          <span class="source-card-badge">Áudio Nativo</span>
+        </div>
+        <div class="source-card-info">
+          <div class="source-card-title-row">
+            <span class="source-card-name">Guia do Navegador</span>
+          </div>
+          <span class="source-card-desc">Transmissão com som de vídeos (YouTube, Twitch, músicas)</span>
+        </div>
+      </div>
+    `;
+
+    const cards = pickerSourcesGrid.querySelectorAll('.source-card');
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        cards.forEach(c => {
+          c.classList.remove('selected');
+          const badge = c.querySelector('.source-selected-badge');
+          if (badge) badge.remove();
+        });
+        card.classList.add('selected');
+        const thumbWrap = card.querySelector('.source-card-thumb-wrap');
+        if (thumbWrap && !card.querySelector('.source-selected-badge')) {
+          const badge = document.createElement('div');
+          badge.className = 'source-selected-badge';
+          badge.textContent = '✓';
+          thumbWrap.appendChild(badge);
+        }
+      });
+    });
   }
 
   function renderPickerSources(type = 'screen') {
@@ -845,8 +913,10 @@ window.TriboneraApp = (function () {
           ${isSelected ? `<div class="source-selected-badge">✓</div>` : ''}
         </div>
         <div class="source-card-info">
-          ${source.appIcon ? `<img class="source-app-icon" src="${source.appIcon}" alt="" />` : ''}
-          <span class="source-card-name" title="${escapeHtml(source.name)}">${escapeHtml(source.name)}</span>
+          <div class="source-card-title-row">
+            ${source.appIcon ? `<img class="source-app-icon" src="${source.appIcon}" alt="" />` : ''}
+            <span class="source-card-name" title="${escapeHtml(source.name)}">${escapeHtml(source.name)}</span>
+          </div>
         </div>
       `;
 
@@ -1691,6 +1761,19 @@ window.TriboneraApp = (function () {
   if (btnLogout) btnLogout.addEventListener('click', logout);
 
   // Screen & Window Picker Modal Listeners
+  if (qualityPresetsGrid) {
+    qualityPresetsGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.quality-preset-btn');
+      if (!btn) return;
+      const q = btn.getAttribute('data-quality');
+      if (q) {
+        if (modalStreamQuality) modalStreamQuality.value = q;
+        if (selectQuality) selectQuality.value = q;
+        updateQualityPresetButtons(q);
+      }
+    });
+  }
+
   if (btnCloseScreenPicker) btnCloseScreenPicker.addEventListener('click', closeScreenPickerModal);
   if (btnCancelScreenPicker) btnCancelScreenPicker.addEventListener('click', closeScreenPickerModal);
   if (btnConfirmStartStream) btnConfirmStartStream.addEventListener('click', executeStartScreenShare);

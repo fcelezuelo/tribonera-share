@@ -303,7 +303,7 @@
         <!-- Video Player Element Container -->
         <div class="video-viewport" id="video-viewport">
           <!-- WebRTC Remote Video (watching someone) -->
-          <video id="remote-video" class="stream-video" autoplay playsinline></video>
+          <video id="remote-video" class="stream-video hidden" autoplay playsinline></video>
           
           <!-- WebRTC Local Preview Video (when self is streaming) -->
           <video id="local-preview-video" class="stream-video preview hidden" autoplay playsinline muted></video>
@@ -672,43 +672,65 @@
             </svg>
           </div>
           <div>
-            <h2 class="admin-title">Escolha o que Transmitir</h2>
-            <p class="admin-subtitle">Selecione o monitor ou a janela do aplicativo para compartilhar</p>
+            <h2 class="admin-title">Compartilhar Tela</h2>
+            <p class="admin-subtitle">Selecione o monitor, janela ou aba para transmitir em alta qualidade</p>
           </div>
         </div>
         <button class="btn-close-modal" id="btn-close-screen-picker">&times;</button>
       </div>
 
-      <!-- Source Type Tabs -->
-      <div class="admin-nav-tabs picker-nav-tabs">
-        <button class="admin-tab active" id="picker-tab-screens" data-picker-type="screen">🖥️ Telas Inteiras</button>
+      <!-- Source Type Tabs (Used in desktop Electron) -->
+      <div class="admin-nav-tabs picker-nav-tabs" id="picker-nav-tabs-wrap">
+        <button class="admin-tab active" id="picker-tab-screens" data-picker-type="screen">🖥️ Telas & Monitores</button>
         <button class="admin-tab" id="picker-tab-windows" data-picker-type="window">🪟 Janelas & Aplicativos</button>
       </div>
 
       <div class="screen-picker-body">
-        <!-- Sources Grid -->
+        <!-- Sources Grid / Capture Options -->
         <div class="sources-grid" id="picker-sources-grid">
           <div class="sources-loading-state">
             <div class="spinner"></div>
-            <span>Buscando telas e janelas disponíveis...</span>
+            <span>Preparando opções de compartilhamento...</span>
           </div>
         </div>
 
         <!-- Stream Quality & Audio Options Settings -->
         <div class="stream-advanced-config">
-          <div class="config-section-title">⚙️ Configurações da Transmissão</div>
+          <div class="config-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>Qualidade & Áudio da Transmissão</span>
+          </div>
           
-          <div class="config-row">
-            <div class="config-col">
-              <label class="config-label" for="modal-stream-quality">Qualidade de Vídeo:</label>
-              <select id="modal-stream-quality" class="admin-select">
-                <option value="1080p60" selected>1080p (60 FPS - Alta Performance)</option>
-                <option value="1080p30">1080p (30 FPS - Padrão)</option>
-                <option value="720p60">720p (60 FPS - Leve)</option>
-                <option value="720p30">720p (30 FPS - Economia de Dados)</option>
-                <option value="1440p60">1440p 2K (60 FPS - Ultra HD)</option>
-              </select>
+          <div class="config-quality-row">
+            <label class="config-label" for="modal-stream-quality">Resolução e Taxa de Quadros:</label>
+            <div class="quality-presets-grid" id="quality-presets-grid">
+              <button type="button" class="quality-preset-btn active" data-quality="1080p60">
+                <span class="preset-title">1080p • 60 FPS</span>
+                <span class="preset-tag">Fluidez Máxima</span>
+              </button>
+              <button type="button" class="quality-preset-btn" data-quality="1080p30">
+                <span class="preset-title">1080p • 30 FPS</span>
+                <span class="preset-tag">Padrão</span>
+              </button>
+              <button type="button" class="quality-preset-btn" data-quality="720p60">
+                <span class="preset-title">720p • 60 FPS</span>
+                <span class="preset-tag">Leve & Rápido</span>
+              </button>
+              <button type="button" class="quality-preset-btn" data-quality="1440p60">
+                <span class="preset-title">1440p 2K • 60 FPS</span>
+                <span class="preset-tag">Ultra HD</span>
+              </button>
             </div>
+            <select id="modal-stream-quality" class="admin-select hidden">
+              <option value="1080p60" selected>1080p (60 FPS - Alta Performance)</option>
+              <option value="1080p30">1080p (30 FPS - Padrão)</option>
+              <option value="720p60">720p (60 FPS - Leve)</option>
+              <option value="720p30">720p (30 FPS - Economia de Dados)</option>
+              <option value="1440p60">1440p 2K (60 FPS - Ultra HD)</option>
+            </select>
           </div>
 
           <div class="audio-switches-grid">
@@ -717,9 +739,9 @@
               <div class="switch-card-content">
                 <div class="switch-card-header">
                   <span class="switch-icon">🔊</span>
-                  <span class="switch-title">Som do Computador</span>
+                  <span class="switch-title">Som do Computador / Jogo</span>
                 </div>
-                <p class="switch-desc">Transmite o áudio dos jogos, vídeos, músicas e sistema.</p>
+                <p class="switch-desc">Transmite o áudio de jogos, vídeos e sons do sistema em tempo real.</p>
               </div>
             </label>
 
@@ -730,7 +752,7 @@
                   <span class="switch-icon">🎙️</span>
                   <span class="switch-title">Microfone (Sua Voz)</span>
                 </div>
-                <p class="switch-desc">Inclui sua voz na transmissão para os amigos ouvirem.</p>
+                <p class="switch-desc">Inclui sua voz junto com a transmissão para os amigos ouvirem.</p>
               </div>
             </label>
           </div>
@@ -738,7 +760,7 @@
           <div class="mic-muted-start-wrap" id="mic-muted-start-wrap" style="display: none;">
             <label class="checkbox-label">
               <input type="checkbox" id="modal-opt-mic-start-muted" checked>
-              <span>Iniciar com o microfone mutado (você pode desmutar a qualquer momento)</span>
+              <span>Iniciar transmissão com o microfone mutado (desmute quando quiser falar)</span>
             </label>
           </div>
         </div>
@@ -746,9 +768,9 @@
 
       <div class="screen-picker-footer">
         <button class="btn btn-secondary" id="btn-cancel-screen-picker">Cancelar</button>
-        <button class="btn btn-primary btn-discord-live" id="btn-confirm-start-stream">
+        <button class="btn btn-discord-share" id="btn-confirm-start-stream">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
           </svg>
           <span>Transmitir Ao Vivo</span>
         </button>
@@ -756,7 +778,7 @@
     </div>
   </div>
 
-  <!-- Update Center & Dynamic Sync Modal -->
+  <!-- Version & System Information Modal -->
   <div class="admin-modal-overlay hidden" id="update-modal">
     <div class="admin-modal-container update-modal-container">
       <div class="admin-modal-header">
@@ -767,8 +789,8 @@
             </svg>
           </div>
           <div>
-            <h2 class="admin-title">Central de Atualizações</h2>
-            <p class="admin-subtitle">Status de versão e sincronização em tempo real (OTA)</p>
+            <h2 class="admin-title">Sobre o Concord</h2>
+            <p class="admin-subtitle">Informações da versão e status do sistema em tempo real</p>
           </div>
         </div>
         <button class="btn-close-modal" id="btn-close-update-modal">&times;</button>
@@ -778,63 +800,51 @@
         <!-- Status Card Grid -->
         <div class="update-status-grid">
           <div class="update-stat-card">
-            <span class="update-stat-label">Versão Atual</span>
+            <span class="update-stat-label">Versão Instalada</span>
             <div class="update-stat-val-wrap">
               <strong class="update-stat-val" id="update-modal-version">v1.0.3</strong>
-              <span class="update-live-tag">LIVE OTA</span>
+              <span class="update-live-tag">ESTÁVEL</span>
             </div>
             <span class="update-stat-sub" id="update-modal-environment">Carregando...</span>
           </div>
 
           <div class="update-stat-card">
-            <span class="update-stat-label">Servidor na Nuvem</span>
+            <span class="update-stat-label">Status do Servidor</span>
             <div class="update-stat-val-wrap">
               <strong class="update-stat-val text-green" id="update-modal-server-status">🟢 Online</strong>
             </div>
-            <span class="update-stat-sub" id="update-modal-server-url">Conectado via WebSocket</span>
+            <span class="update-stat-sub" id="update-modal-server-url">Sinalização WebSocket Ativa</span>
+          </div>
+
+          <div class="update-stat-card full-width-stat">
+            <span class="update-stat-label">Engine de Transmissão WebRTC</span>
+            <div class="update-stat-val-wrap">
+              <strong class="update-stat-val" style="font-size: 15px;">⚡ P2P Direct Stream (60 FPS)</strong>
+            </div>
+            <span class="update-stat-sub">Latência ultrabaixa com mixagem de áudio estéreo e VP9/H.264</span>
           </div>
         </div>
 
         <!-- Action Box -->
         <div class="update-action-box">
           <div class="update-action-info">
-            <h4>Verificação de Atualizações</h4>
-            <p id="update-check-status-text">O Concord sincroniza automaticamente novidades do servidor. Você também pode verificar manualmente ou recarregar.</p>
+            <h4>Sincronização do Aplicativo</h4>
+            <p id="update-check-status-text">O Concord mantém interface, áudio e vídeo sincronizados com o servidor em tempo real.</p>
           </div>
 
           <div class="update-action-btns">
-            <button class="btn btn-primary" id="btn-modal-check-updates">
+            <button class="btn btn-discord-share" id="btn-modal-check-updates">
               <span id="check-updates-spinner" class="spinner-inline hidden"></span>
-              <span id="check-updates-icon">🔍</span>
+              <span id="check-updates-icon">🔄</span>
               <span id="check-updates-btn-text">Verificar Atualizações</span>
             </button>
             <button class="btn btn-secondary" id="btn-modal-force-reload" title="Recarrega o aplicativo limpando cache">
-              <span>⚡ Recarregar Interface (Hot Reload)</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px;">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              <span>Recarregar Interface</span>
             </button>
-          </div>
-        </div>
-
-        <!-- Guide Box: How updating without rebuild works -->
-        <div class="update-guide-box">
-          <div class="guide-title">
-            <span>💡 Como funciona a atualização automática sem rebuild?</span>
-          </div>
-          <div class="guide-items">
-            <div class="guide-item">
-              <span class="guide-icon">☁️</span>
-              <div class="guide-text">
-                <strong>Atualizações no Ar (OTA - 99% das mudanças)</strong>
-                <p>O aplicativo desktop e web carrega os recursos diretamente do seu servidor na nuvem (Render/Web). Quando você altera telas, corrige bugs, adiciona som ou ajusta vídeo e sobe no servidor, <strong>todos os seus amigos recebem a novidade instantaneamente</strong> na próxima vez que abrem o Concord ou clicam em <em>Recarregar</em>, sem precisar gerar outro <code>.exe</code>!</p>
-              </div>
-            </div>
-
-            <div class="guide-item">
-              <span class="guide-icon">📦</span>
-              <div class="guide-text">
-                <strong>Quando é necessário rebuildar o <code>.exe</code>?</strong>
-                <p>Apenas se você alterar arquivos nativos do Electron do sistema operacional (como <code>electron-main.cjs</code> para novas permissões de hardware ou ícones de janela). Todo o restante do Concord é 100% dinâmico.</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
