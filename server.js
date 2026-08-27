@@ -656,9 +656,15 @@ io.on('connection', (socket) => {
     const streamer = onlineUsers.get(socket.id);
     if (!streamer) return;
 
+    // Clean up any previous stream by this socket or user code
+    cleanupUserStream(socket.id);
+    cleanupUserStream(streamer.code);
+
     streamer.status = '🔴 Transmitindo';
     streamer.watchingStreamerCode = null;
     streamer.watchingStreamerName = null;
+
+    const startedAt = Date.now();
 
     memoryStreams.set(socket.id, {
       streamerSocketId: socket.id,
@@ -669,7 +675,7 @@ io.on('connection', (socket) => {
       fps: data.fps || 60,
       hasAudio: !!data.hasAudio,
       viewers: new Map(),
-      startedAt: Date.now()
+      startedAt: startedAt
     });
 
     syncStreamsToDisk();
@@ -682,7 +688,8 @@ io.on('connection', (socket) => {
       title: data.title || `Tela de ${streamer.nickname}`,
       resolution: data.resolution || '1080p',
       fps: data.fps || 60,
-      hasAudio: !!data.hasAudio
+      hasAudio: !!data.hasAudio,
+      startedAt: startedAt
     });
   });
 
@@ -701,7 +708,20 @@ io.on('connection', (socket) => {
     const viewer = onlineUsers.get(socket.id);
     if (!viewer) return;
 
-    const stream = memoryStreams.get(streamerSocketId);
+    let targetId = streamerSocketId;
+    let stream = memoryStreams.get(targetId);
+
+    // Fallback: check if streamerSocketId was actually a streamerCode
+    if (!stream) {
+      for (const [sId, s] of memoryStreams.entries()) {
+        if (s.streamerCode === targetId || s.streamerSocketId === targetId) {
+          stream = s;
+          targetId = sId;
+          break;
+        }
+      }
+    }
+
     if (!stream) {
       return socket.emit('stream:error', { message: 'Transmissão não encontrada ou já encerrada.' });
     }
@@ -720,7 +740,7 @@ io.on('connection', (socket) => {
     broadcastPresence();
 
     // Signal the streamer that a new viewer wants WebRTC connection
-    io.to(streamerSocketId).emit('webrtc:new-viewer', {
+    io.to(targetId).emit('webrtc:new-viewer', {
       viewerSocketId: socket.id,
       viewerNickname: viewer.nickname,
       viewerCode: viewer.code

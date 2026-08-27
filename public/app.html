@@ -640,6 +640,103 @@
     </div>
   </div>
 
+  <!-- Screen & Window Source Picker Modal -->
+  <div class="admin-modal-overlay hidden" id="screen-picker-modal">
+    <div class="admin-modal-container screen-picker-container">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <div class="admin-badge-icon screen-badge-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 class="admin-title">Escolha o que Transmitir</h2>
+            <p class="admin-subtitle">Selecione o monitor ou a janela do aplicativo para compartilhar</p>
+          </div>
+        </div>
+        <button class="btn-close-modal" id="btn-close-screen-picker">&times;</button>
+      </div>
+
+      <!-- Source Type Tabs -->
+      <div class="admin-nav-tabs picker-nav-tabs">
+        <button class="admin-tab active" id="picker-tab-screens" data-picker-type="screen">🖥️ Telas Inteiras</button>
+        <button class="admin-tab" id="picker-tab-windows" data-picker-type="window">🪟 Janelas & Aplicativos</button>
+      </div>
+
+      <div class="screen-picker-body">
+        <!-- Sources Grid -->
+        <div class="sources-grid" id="picker-sources-grid">
+          <div class="sources-loading-state">
+            <div class="spinner"></div>
+            <span>Buscando telas e janelas disponíveis...</span>
+          </div>
+        </div>
+
+        <!-- Stream Quality & Audio Options Settings -->
+        <div class="stream-advanced-config">
+          <div class="config-section-title">⚙️ Configurações da Transmissão</div>
+          
+          <div class="config-row">
+            <div class="config-col">
+              <label class="config-label" for="modal-stream-quality">Qualidade de Vídeo:</label>
+              <select id="modal-stream-quality" class="admin-select">
+                <option value="1080p60" selected>1080p (60 FPS - Alta Performance)</option>
+                <option value="1080p30">1080p (30 FPS - Padrão)</option>
+                <option value="720p60">720p (60 FPS - Leve)</option>
+                <option value="720p30">720p (30 FPS - Economia de Dados)</option>
+                <option value="1440p60">1440p 2K (60 FPS - Ultra HD)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="audio-switches-grid">
+            <label class="audio-switch-card">
+              <input type="checkbox" id="modal-opt-sys-audio" checked>
+              <div class="switch-card-content">
+                <div class="switch-card-header">
+                  <span class="switch-icon">🔊</span>
+                  <span class="switch-title">Som do Computador</span>
+                </div>
+                <p class="switch-desc">Transmite o áudio dos jogos, vídeos, músicas e sistema.</p>
+              </div>
+            </label>
+
+            <label class="audio-switch-card">
+              <input type="checkbox" id="modal-opt-mic-audio">
+              <div class="switch-card-content">
+                <div class="switch-card-header">
+                  <span class="switch-icon">🎙️</span>
+                  <span class="switch-title">Microfone (Sua Voz)</span>
+                </div>
+                <p class="switch-desc">Inclui sua voz na transmissão para os amigos ouvirem.</p>
+              </div>
+            </label>
+          </div>
+
+          <div class="mic-muted-start-wrap" id="mic-muted-start-wrap" style="display: none;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="modal-opt-mic-start-muted" checked>
+              <span>Iniciar com o microfone mutado (você pode desmutar a qualquer momento)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-picker-footer">
+        <button class="btn btn-secondary" id="btn-cancel-screen-picker">Cancelar</button>
+        <button class="btn btn-primary btn-discord-live" id="btn-confirm-start-stream">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span>Transmitir Ao Vivo</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 

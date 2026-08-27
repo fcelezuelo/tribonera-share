@@ -40,6 +40,20 @@ window.TriboneraApp = (function () {
   const permissionModal = document.getElementById('permission-modal');
   const btnClosePermissionModal = document.getElementById('btn-close-permission-modal');
 
+  // Screen & Window Source Picker Modal
+  const screenPickerModal = document.getElementById('screen-picker-modal');
+  const btnCloseScreenPicker = document.getElementById('btn-close-screen-picker');
+  const btnCancelScreenPicker = document.getElementById('btn-cancel-screen-picker');
+  const btnConfirmStartStream = document.getElementById('btn-confirm-start-stream');
+  const pickerTabScreens = document.getElementById('picker-tab-screens');
+  const pickerTabWindows = document.getElementById('picker-tab-windows');
+  const pickerSourcesGrid = document.getElementById('picker-sources-grid');
+  const modalStreamQuality = document.getElementById('modal-stream-quality');
+  const modalOptSysAudio = document.getElementById('modal-opt-sys-audio');
+  const modalOptMicAudio = document.getElementById('modal-opt-mic-audio');
+  const modalOptMicStartMuted = document.getElementById('modal-opt-mic-start-muted');
+  const micMutedStartWrap = document.getElementById('mic-muted-start-wrap');
+
   // Stage & Video
   const videoHeaderBar = document.getElementById('video-header-bar');
   const currentStreamerAvatar = document.getElementById('current-streamer-avatar');
@@ -624,7 +638,158 @@ window.TriboneraApp = (function () {
   }
 
   // --- Screen Sharing Actions (Broadcaster) ---
-  async function startScreenShare() {
+  let selectedDesktopSourceId = null;
+  let cachedDesktopSources = [];
+  let currentPickerType = 'screen';
+
+  async function openScreenPickerModal() {
+    if (isCurrentlyStreaming) return;
+
+    if (screenPickerModal) {
+      screenPickerModal.classList.remove('hidden');
+    }
+
+    // Sync options from sidebar or defaults
+    if (modalStreamQuality && selectQuality) {
+      modalStreamQuality.value = selectQuality.value || '1080p60';
+    }
+    if (modalOptSysAudio && checkboxSystemAudio) {
+      modalOptSysAudio.checked = checkboxSystemAudio.checked;
+    }
+    if (modalOptMicAudio && checkboxMicAudio) {
+      modalOptMicAudio.checked = checkboxMicAudio.checked;
+    }
+    if (modalOptMicStartMuted && checkboxMicStartMuted) {
+      modalOptMicStartMuted.checked = checkboxMicStartMuted.checked;
+    }
+    if (micMutedStartWrap && modalOptMicAudio) {
+      micMutedStartWrap.style.display = modalOptMicAudio.checked ? 'block' : 'none';
+    }
+
+    selectedDesktopSourceId = null;
+
+    // Check if Electron desktopCapturer is available
+    if (window.electronAPI && typeof window.electronAPI.getDesktopSources === 'function') {
+      if (pickerSourcesGrid) {
+        pickerSourcesGrid.innerHTML = `
+          <div class="sources-loading-state">
+            <div class="spinner"></div>
+            <span>Buscando telas e janelas disponíveis no seu computador...</span>
+          </div>
+        `;
+      }
+
+      try {
+        cachedDesktopSources = await window.electronAPI.getDesktopSources();
+        renderPickerSources(currentPickerType);
+      } catch (err) {
+        console.error('Erro ao buscar desktop sources:', err);
+        if (pickerSourcesGrid) {
+          pickerSourcesGrid.innerHTML = `
+            <div class="sources-empty-state">
+              <span>⚠️ Não foi possível listar as janelas automaticamente. O seletor do sistema será aberto ao confirmar.</span>
+            </div>
+          `;
+        }
+      }
+    } else {
+      // In standard browser environment
+      if (pickerSourcesGrid) {
+        pickerSourcesGrid.innerHTML = `
+          <div class="source-card selected" data-source-id="browser_display">
+            <div class="source-card-thumb-wrap">
+              <span class="source-card-thumb-placeholder">🖥️</span>
+              <div class="source-selected-badge">✓</div>
+            </div>
+            <div class="source-card-info">
+              <span class="source-card-name">Escolher Tela / Janela no Navegador</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderPickerSources(type = 'screen') {
+    if (!pickerSourcesGrid) return;
+    currentPickerType = type;
+
+    // Update active tab button
+    if (pickerTabScreens && pickerTabWindows) {
+      if (type === 'screen') {
+        pickerTabScreens.classList.add('active');
+        pickerTabWindows.classList.remove('active');
+      } else {
+        pickerTabWindows.classList.add('active');
+        pickerTabScreens.classList.remove('active');
+      }
+    }
+
+    pickerSourcesGrid.innerHTML = '';
+
+    const filtered = cachedDesktopSources.filter(s => {
+      const isScreen = s.id.startsWith('screen:');
+      return type === 'screen' ? isScreen : !isScreen;
+    });
+
+    if (filtered.length === 0) {
+      pickerSourcesGrid.innerHTML = `
+        <div class="sources-empty-state">
+          <span>Nenhuma ${type === 'screen' ? 'tela' : 'janela de aplicativo'} detectada no momento.</span>
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach((source, index) => {
+      const isSelected = selectedDesktopSourceId ? (selectedDesktopSourceId === source.id) : (index === 0);
+      if (isSelected && !selectedDesktopSourceId) {
+        selectedDesktopSourceId = source.id;
+      }
+
+      const card = document.createElement('div');
+      card.className = `source-card ${isSelected ? 'selected' : ''}`;
+      card.setAttribute('data-source-id', source.id);
+
+      card.innerHTML = `
+        <div class="source-card-thumb-wrap">
+          ${source.thumbnail ? `<img class="source-card-thumb" src="${source.thumbnail}" alt="${escapeHtml(source.name)}" />` : `<span class="source-card-thumb-placeholder">${type === 'screen' ? '🖥️' : '🪟'}</span>`}
+          ${isSelected ? `<div class="source-selected-badge">✓</div>` : ''}
+        </div>
+        <div class="source-card-info">
+          ${source.appIcon ? `<img class="source-app-icon" src="${source.appIcon}" alt="" />` : ''}
+          <span class="source-card-name" title="${escapeHtml(source.name)}">${escapeHtml(source.name)}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectedDesktopSourceId = source.id;
+        document.querySelectorAll('.source-card').forEach(c => {
+          c.classList.remove('selected');
+          const badge = c.querySelector('.source-selected-badge');
+          if (badge) badge.remove();
+        });
+        card.classList.add('selected');
+        const thumbWrap = card.querySelector('.source-card-thumb-wrap');
+        if (thumbWrap && !card.querySelector('.source-selected-badge')) {
+          const badge = document.createElement('div');
+          badge.className = 'source-selected-badge';
+          badge.textContent = '✓';
+          thumbWrap.appendChild(badge);
+        }
+      });
+
+      pickerSourcesGrid.appendChild(card);
+    });
+  }
+
+  function closeScreenPickerModal() {
+    if (screenPickerModal) {
+      screenPickerModal.classList.add('hidden');
+    }
+  }
+
+  async function executeStartScreenShare() {
     if (isCurrentlyStreaming) return;
 
     // Leave any watched stream first
@@ -632,18 +797,19 @@ window.TriboneraApp = (function () {
       leaveCurrentStream();
     }
 
-    const quality = selectQuality ? selectQuality.value : '1080p60';
+    const quality = modalStreamQuality ? modalStreamQuality.value : (selectQuality ? selectQuality.value : '1080p60');
     const audioOptions = {
-      systemAudio: checkboxSystemAudio ? checkboxSystemAudio.checked : true,
-      micAudio: checkboxMicAudio ? checkboxMicAudio.checked : false,
-      micStartMuted: checkboxMicStartMuted ? checkboxMicStartMuted.checked : true
+      systemAudio: modalOptSysAudio ? modalOptSysAudio.checked : true,
+      micAudio: modalOptMicAudio ? modalOptMicAudio.checked : false,
+      micStartMuted: modalOptMicStartMuted ? modalOptMicStartMuted.checked : true
     };
 
-    const result = await TriboneraWebRTC.startScreenCapture(quality, audioOptions);
+    closeScreenPickerModal();
+
+    const result = await TriboneraWebRTC.startScreenCapture(quality, audioOptions, selectedDesktopSourceId);
 
     if (!result.success) {
       if (result.isPermissionsPolicyError) {
-        // Open options modal so user can launch in New Tab for direct OS capture
         openPermissionModal();
         return;
       }
@@ -707,6 +873,10 @@ window.TriboneraApp = (function () {
     }
 
     showToast('Transmissão iniciada com sucesso!', 'success');
+  }
+
+  function startScreenShare() {
+    openScreenPickerModal();
   }
 
   function openPermissionModal() {

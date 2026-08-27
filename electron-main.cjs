@@ -103,16 +103,24 @@ async function createWindow() {
     try {
       const sources = await desktopCapturer.getSources({
         types: ['screen', 'window'],
-        thumbnailSize: { width: 320, height: 180 },
+        thumbnailSize: { width: 480, height: 270 },
         fetchWindowIcons: true
       });
 
       if (sources.length > 0) {
-        // Prioriza a tela principal inteira para garantir captura de áudio sem erro do Windows
-        const primarySource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+        let chosenSource = null;
+        if (selectedSourceIdForDisplayMedia) {
+          chosenSource = sources.find(s => s.id === selectedSourceIdForDisplayMedia);
+        }
+        if (!chosenSource) {
+          // Prioriza a tela principal inteira se nenhuma específica foi selecionada
+          chosenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+        }
+
+        console.log(`[Concord] Iniciando captura da fonte: ${chosenSource.name} (${chosenSource.id})`);
         
         callback({
-          video: primarySource,
+          video: chosenSource,
           audio: request.audio ? 'loopback' : undefined
         });
       } else {
@@ -211,19 +219,28 @@ function setupAutoUpdater() {
   }, 15 * 60 * 1000);
 }
 
+let selectedSourceIdForDisplayMedia = null;
+
 // -------------------------------------------------------------------
 // IPC Handlers: Seleção visual de telas / janelas e fontes de captura
 // -------------------------------------------------------------------
+ipcMain.handle('set-selected-source-id', (_event, sourceId) => {
+  selectedSourceIdForDisplayMedia = sourceId;
+  console.log('[Concord] Fonte de captura selecionada pelo usuário:', sourceId);
+  return true;
+});
+
 ipcMain.handle('get-desktop-sources', async () => {
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen', 'window'],
-      thumbnailSize: { width: 320, height: 180 },
+      thumbnailSize: { width: 480, height: 270 },
       fetchWindowIcons: true
     });
     return sources.map(src => ({
       id: src.id,
       name: src.name,
+      display_id: src.display_id || '',
       thumbnail: src.thumbnail.toDataURL(),
       appIcon: src.appIcon ? src.appIcon.toDataURL() : null
     }));
