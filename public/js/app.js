@@ -1028,6 +1028,23 @@ window.TriboneraApp = (function () {
     }
   }
 
+  function updateLiveAudioStatus(hasAudio, isMuted) {
+    if (!liveAudioStatusPill || !liveAudioStatusText) return;
+    if (!hasAudio) {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
+      liveAudioStatusText.textContent = '🔇 Sem Áudio';
+      if (equalizerAnim) equalizerAnim.classList.add('paused');
+    } else if (isMuted) {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
+      liveAudioStatusText.textContent = '🔇 Áudio Mutado';
+      if (equalizerAnim) equalizerAnim.classList.add('paused');
+    } else {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-active';
+      liveAudioStatusText.textContent = '🔊 Som Ao Vivo';
+      if (equalizerAnim) equalizerAnim.classList.remove('paused');
+    }
+  }
+
   // --- Watching Streams (Viewer) ---
   function watchStreamByCode(streamerCode) {
     const stream = activeStreamsList.find(s => s.streamerCode === streamerCode);
@@ -1061,6 +1078,8 @@ window.TriboneraApp = (function () {
     viewersBar.classList.remove('hidden');
     videoControlsOverlay.classList.remove('hidden');
     if (btnStreamerMuteAudio) btnStreamerMuteAudio.classList.add('hidden');
+    if (btnStreamerSysAudioToggle) btnStreamerSysAudioToggle.classList.add('hidden');
+    if (btnStreamerMicToggle) btnStreamerMicToggle.classList.add('hidden');
     if (glassViewersBadge) glassViewersBadge.classList.remove('hidden');
     if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
 
@@ -1454,6 +1473,23 @@ window.TriboneraApp = (function () {
   if (btnStopShare) btnStopShare.addEventListener('click', stopScreenShare);
   if (btnStopWatching) btnStopWatching.addEventListener('click', () => leaveCurrentStream(true));
   if (btnLogout) btnLogout.addEventListener('click', logout);
+
+  // Screen & Window Picker Modal Listeners
+  if (btnCloseScreenPicker) btnCloseScreenPicker.addEventListener('click', closeScreenPickerModal);
+  if (btnCancelScreenPicker) btnCancelScreenPicker.addEventListener('click', closeScreenPickerModal);
+  if (btnConfirmStartStream) btnConfirmStartStream.addEventListener('click', executeStartScreenShare);
+  if (pickerTabScreens) pickerTabScreens.addEventListener('click', () => renderPickerSources('screen'));
+  if (pickerTabWindows) pickerTabWindows.addEventListener('click', () => renderPickerSources('window'));
+  if (modalOptMicAudio && micMutedStartWrap) {
+    modalOptMicAudio.addEventListener('change', () => {
+      micMutedStartWrap.style.display = modalOptMicAudio.checked ? 'block' : 'none';
+    });
+  }
+  if (screenPickerModal) {
+    screenPickerModal.addEventListener('click', (e) => {
+      if (e.target === screenPickerModal) closeScreenPickerModal();
+    });
+  }
 
   if (btnClosePermissionModal) {
     btnClosePermissionModal.addEventListener('click', closePermissionModal);
