@@ -436,6 +436,15 @@ window.TriboneraApp = (function () {
       }
     });
 
+    // Initial state from server
+    socket.on('init:state', (data) => {
+      if (data && Array.isArray(data.activeStreams)) {
+        activeStreamsList = data.activeStreams;
+        renderActiveStreamsSidebar(data.activeStreams);
+        renderHeaderStreams(data.activeStreams);
+      }
+    });
+
     // Real-Time Notification when another user starts streaming
     socket.on('stream:started', (stream) => {
       if (stream && stream.streamerCode !== currentUser.code) {
@@ -474,7 +483,55 @@ window.TriboneraApp = (function () {
     });
 
     socket.on('webrtc:offer', ({ fromSocketId, fromNickname, offer }) => {
-      console.log(`Offer WebRTC recebida de ${fromNickname}`);
+      console.log(`Offer WebRTC recebida de ${fromNickname} (${fromSocketId})`);
+      
+      const streamInfo = activeStreamsList.find(s => s.streamerSocketId === fromSocketId || s.streamerName === fromNickname);
+      const streamerName = streamInfo?.streamerName || fromNickname || 'Transmissão';
+      const resolution = streamInfo?.resolution || '1080p';
+      const fps = streamInfo?.fps || 60;
+      const startedAt = streamInfo?.startedAt || Date.now();
+      const hasAudio = streamInfo ? streamInfo.hasAudio : true;
+
+      currentWatchedStream = {
+        streamerSocketId: fromSocketId,
+        streamerName: streamerName,
+        resolution: resolution,
+        fps: fps,
+        hasAudio: hasAudio,
+        startedAt: startedAt,
+        viewers: streamInfo?.viewers || []
+      };
+
+      myStatusDot.className = 'status-indicator watching';
+      footerUserStatus.textContent = `👀 Assistindo ${streamerName}`;
+
+      emptyStageState.classList.add('hidden');
+      localPreviewVideo.classList.add('hidden');
+      remoteVideo.classList.remove('hidden');
+      videoHeaderBar.classList.remove('hidden');
+      viewersBar.classList.remove('hidden');
+      videoControlsOverlay.classList.remove('hidden');
+      if (btnStreamerMuteAudio) btnStreamerMuteAudio.classList.add('hidden');
+      if (btnStreamerSysAudioToggle) btnStreamerSysAudioToggle.classList.add('hidden');
+      if (btnStreamerMicToggle) btnStreamerMicToggle.classList.add('hidden');
+      if (glassViewersBadge) glassViewersBadge.classList.remove('hidden');
+      if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
+
+      currentStreamerAvatar.textContent = streamerName.charAt(0).toUpperCase();
+      currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(streamerName)}`;
+      currentStreamerTitle.textContent = `Tela de ${streamerName}`;
+      currentStreamerSpecs.textContent = `${resolution} • ${fps} FPS • WebRTC Direct`;
+
+      if (streamTimerInterval) clearInterval(streamTimerInterval);
+      streamStartTime = startedAt;
+      updateStreamTimer();
+      streamTimerInterval = setInterval(updateStreamTimer, 1000);
+
+      updateLiveAudioStatus(hasAudio, false);
+
+      remoteVideo.muted = false;
+      remoteVideo.volume = 1;
+
       TriboneraWebRTC.handleStreamerOffer(fromSocketId, offer, socket, remoteVideo);
     });
 
@@ -1078,15 +1135,18 @@ window.TriboneraApp = (function () {
 
   // --- Watching Streams (Viewer) ---
   function watchStreamByCode(streamerCode) {
-    const stream = activeStreamsList.find(s => s.streamerCode === streamerCode);
+    const stream = activeStreamsList.find(s => s.streamerCode === streamerCode || s.streamerSocketId === streamerCode);
     if (stream) {
       watchStream(stream);
+    } else {
+      socket.emit('stream:join-viewer', { streamerSocketId: streamerCode });
     }
   }
 
   function watchStream(stream) {
+    if (!stream) return;
     if (isCurrentlyStreaming) {
-      if (!confirm('Você está transmitindo no momento. Deseja encerrar sua transmissão para assistir a de ' + stream.streamerName + '?')) {
+      if (!confirm('Você está transmitindo no momento. Deseja encerrar sua transmissão para assistir a de ' + (stream.streamerName || 'outro usuário') + '?')) {
         return;
       }
       stopScreenShare();

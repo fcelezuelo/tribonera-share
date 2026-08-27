@@ -503,28 +503,7 @@ window.TriboneraWebRTC = (function () {
     // Add all local tracks (video and audio) to RTCPeerConnection
     localStream.getTracks().forEach(track => {
       console.log(`[WebRTC] Streamer adicionando trilha ${track.kind} (${track.label}) ao PeerConnection para espectador ${viewerSocketId}`);
-      const sender = pc.addTrack(track, localStream);
-
-      // Optimize video sender for high 60 FPS transmission
-      if (track.kind === 'video' && sender && sender.getParameters) {
-        try {
-          const params = sender.getParameters();
-          if (!params.encodings || params.encodings.length === 0) {
-            params.encodings = [{}];
-          }
-          if (currentStreamFps >= 60) {
-            params.encodings[0].maxFramerate = 60;
-            params.encodings[0].maxBitrate = 6000000;
-          } else {
-            params.encodings[0].maxFramerate = 30;
-            params.encodings[0].maxBitrate = 3500000;
-          }
-          params.degradationPreference = 'maintain-framerate';
-          sender.setParameters(params).catch(e => console.warn('setParameters note:', e));
-        } catch (e) {
-          console.warn('Sender parameter config note:', e);
-        }
-      }
+      pc.addTrack(track, localStream);
     });
 
     // Handle ICE Candidate generation
@@ -549,8 +528,34 @@ window.TriboneraWebRTC = (function () {
 
     // Create standard SDP Offer with audio and video
     try {
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false
+      });
       await pc.setLocalDescription(offer);
+
+      // Optimize video sender for smooth 30/60 FPS transmission after local description is set
+      pc.getSenders().forEach(sender => {
+        if (sender.track && sender.track.kind === 'video' && sender.getParameters) {
+          try {
+            const params = sender.getParameters();
+            if (!params.encodings || params.encodings.length === 0) {
+              params.encodings = [{}];
+            }
+            if (currentStreamFps >= 60) {
+              params.encodings[0].maxFramerate = 60;
+              params.encodings[0].maxBitrate = 6000000;
+            } else {
+              params.encodings[0].maxFramerate = 30;
+              params.encodings[0].maxBitrate = 3500000;
+            }
+            params.degradationPreference = 'maintain-framerate';
+            sender.setParameters(params).catch(e => console.warn('setParameters note:', e));
+          } catch (e) {
+            console.warn('Sender parameter config note:', e);
+          }
+        }
+      });
 
       socket.emit('webrtc:offer', {
         targetSocketId: viewerSocketId,
@@ -599,40 +604,65 @@ window.TriboneraWebRTC = (function () {
     }
 
     viewerPeerConnection = new RTCPeerConnection(rtcConfig);
-    remoteMediaStream = new MediaStream();
 
-    if (remoteVideoElement) {
-      remoteVideoElement.srcObject = remoteMediaStream;
-      remoteVideoElement.playsInline = true;
-      remoteVideoElement.autoplay = true;
+    // Setup transceivers for receiving video and audio streams
+    try {
+      viewerPeerConnection.addTransceiver('video', { direction: 'recvonly' });
+      viewerPeerConnection.addTransceiver('audio', { direction: 'recvonly' });
+    } catch (tErr) {
+      console.warn('Transceiver add note:', tErr);
     }
 
-    // When remote track arrives, attach to video element and trigger play
+    // When remote track arrives, attach directly to video element and trigger play
     viewerPeerConnection.ontrack = (event) => {
-      console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}`);
+      console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams?.length}`);
 
-      if (event.track) {
-        event.track.enabled = true;
-        // Avoid adding duplicate track
+      let streamToPlay = (event.streams && event.streams[0]) ? event.streams[0] : null;
+      if (!streamToPlay) {
+        if (!remoteMediaStream) {
+          remoteMediaStream = new MediaStream();
+        }
         if (!remoteMediaStream.getTracks().some(t => t.id === event.track.id)) {
           remoteMediaStream.addTrack(event.track);
         }
+        streamToPlay = remoteMediaStream;
+      } else {
+        remoteMediaStream = streamToPlay;
+      }
+
+      if (event.track) {
+        event.track.enabled = true;
       }
 
       if (remoteVideoElement) {
-        if (remoteVideoElement.srcObject !== remoteMediaStream) {
-          remoteVideoElement.srcObject = remoteMediaStream;
+        if (remoteVideoElement.srcObject !== streamToPlay) {
+          remoteVideoElement.srcObject = streamToPlay;
         }
+        remoteVideoElement.playsInline = true;
+        remoteVideoElement.autoplay = true;
 
-        // Handle playback and browser autoplay restrictions
-        const playPromise = remoteVideoElement.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(err => {
-            console.warn('Autoplay com som bloqueado pelo navegador, silenciando para iniciar reprodução imediata do vídeo:', err);
-            remoteVideoElement.muted = true;
-            remoteVideoElement.play().catch(e => console.error('Falha ao reproduzir vídeo:', e));
-          });
-        }
+        const startPlayback = () => {
+          const playPromise = remoteVideoElement.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              console.warn('[WebRTC] Autoplay bloqueado pelo navegador, tentando silenciado:', err);
+              remoteVideoElement.muted = true;
+              remoteVideoElement.play().catch(e => console.error('[WebRTC] Falha ao reproduzir vídeo:', e));
+            });
+          }
+        };
+
+        startPlayback();
+
+        event.track.onunmute = () => {
+          console.log(`[WebRTC] Trilha ${event.track.kind} ativa (unmuted)`);
+          startPlayback();
+        };
+
+        remoteVideoElement.onloadedmetadata = () => {
+          console.log(`[WebRTC] Metadados do vídeo remoto: ${remoteVideoElement.videoWidth}x${remoteVideoElement.videoHeight}`);
+          startPlayback();
+        };
       }
     };
 
@@ -686,32 +716,39 @@ window.TriboneraWebRTC = (function () {
    */
   async function handleIceCandidate(fromSocketId, candidate) {
     if (!candidate) return;
-    const rtcCand = new RTCIceCandidate(candidate);
+    try {
+      const rtcCand = new RTCIceCandidate(candidate);
 
-    // Check if we are streamer receiving candidate from viewer
-    if (streamerPeerConnections.has(fromSocketId)) {
-      const pc = streamerPeerConnections.get(fromSocketId);
-      if (pc.remoteDescription && pc.remoteDescription.type) {
-        try {
-          await pc.addIceCandidate(rtcCand);
-        } catch (err) {
-          console.warn('Erro ao adicionar ICE candidate no streamer:', err);
+      // Check if we are streamer receiving candidate from viewer
+      if (streamerPeerConnections.has(fromSocketId)) {
+        const pc = streamerPeerConnections.get(fromSocketId);
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          try {
+            await pc.addIceCandidate(rtcCand);
+          } catch (err) {
+            console.warn('Erro ao adicionar ICE candidate no streamer:', err);
+          }
+        } else {
+          // Queue until setRemoteDescription completes
+          if (!streamerIceCandidateQueues.has(fromSocketId)) {
+            streamerIceCandidateQueues.set(fromSocketId, []);
+          }
+          streamerIceCandidateQueues.get(fromSocketId).push(rtcCand);
         }
-      } else {
-        // Queue until setRemoteDescription completes
-        if (!streamerIceCandidateQueues.has(fromSocketId)) {
-          streamerIceCandidateQueues.set(fromSocketId, []);
-        }
-        streamerIceCandidateQueues.get(fromSocketId).push(rtcCand);
-      }
-    } 
-    // Or if we are viewer receiving candidate from streamer
-    else {
-      if (viewerPeerConnection && currentWatchedStreamerSocketId === fromSocketId && viewerPeerConnection.remoteDescription && viewerPeerConnection.remoteDescription.type) {
-        try {
-          await viewerPeerConnection.addIceCandidate(rtcCand);
-        } catch (err) {
-          console.warn('Erro ao adicionar ICE candidate no viewer:', err);
+      } 
+      // Or if we are viewer receiving candidate from streamer
+      else if (viewerPeerConnection) {
+        if (viewerPeerConnection.remoteDescription && viewerPeerConnection.remoteDescription.type) {
+          try {
+            await viewerPeerConnection.addIceCandidate(rtcCand);
+          } catch (err) {
+            console.warn('Erro ao adicionar ICE candidate no viewer:', err);
+          }
+        } else {
+          if (!viewerIceCandidateQueues.has(fromSocketId)) {
+            viewerIceCandidateQueues.set(fromSocketId, []);
+          }
+          viewerIceCandidateQueues.get(fromSocketId).push(rtcCand);
         }
       } else {
         if (!viewerIceCandidateQueues.has(fromSocketId)) {
@@ -719,6 +756,8 @@ window.TriboneraWebRTC = (function () {
         }
         viewerIceCandidateQueues.get(fromSocketId).push(rtcCand);
       }
+    } catch (err) {
+      console.warn('Candidato ICE inválido recebido:', err);
     }
   }
 
