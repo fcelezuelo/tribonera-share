@@ -4,7 +4,7 @@
  */
 
 window.TriboneraWebRTC = (function () {
-  // RTC Configuration with Multiple Global STUN and Free TURN Servers for NAT Traversal
+  // RTC Configuration with High Reliability Google and Cloudflare STUN Servers
   const rtcConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -12,20 +12,10 @@ window.TriboneraWebRTC = (function () {
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
       { urls: 'stun:stun4.l.google.com:19302' },
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:stun.nextcloud.com:443' },
-      { urls: 'stun:stun.relay.metered.ca:80' },
-      {
-        urls: [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp'
-        ],
-        username: 'openrelay',
-        credential: 'openrelay'
-      }
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'stun:stun.cloudflare.com:3478' }
     ],
-    iceCandidatePoolSize: 10,
+    iceCandidatePoolSize: 0,
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
   };
@@ -484,7 +474,13 @@ window.TriboneraWebRTC = (function () {
    */
   async function handleNewViewer(viewerSocketId, socket) {
     if (!localStream) {
-      console.warn('Tentativa de conectar espectador sem stream local ativa.');
+      console.warn('[WebRTC] Tentativa de conectar espectador sem stream local ativa.');
+      return;
+    }
+
+    const liveTracks = localStream.getTracks().filter(t => t.readyState === 'live');
+    if (liveTracks.length === 0) {
+      console.warn('[WebRTC] Stream local não possui trilhas ativas (ready).');
       return;
     }
 
@@ -500,8 +496,8 @@ window.TriboneraWebRTC = (function () {
     const pc = new RTCPeerConnection(rtcConfig);
     streamerPeerConnections.set(viewerSocketId, pc);
 
-    // Add all local tracks (video and audio) to RTCPeerConnection
-    localStream.getTracks().forEach(track => {
+    // Add all local active tracks to RTCPeerConnection
+    liveTracks.forEach(track => {
       console.log(`[WebRTC] Streamer adicionando trilha ${track.kind} (${track.label}) ao PeerConnection para espectador ${viewerSocketId}`);
       pc.addTrack(track, localStream);
     });
@@ -518,7 +514,7 @@ window.TriboneraWebRTC = (function () {
 
     // Handle connection state
     pc.onconnectionstatechange = () => {
-      console.log(`Streamer->Viewer [${viewerSocketId}] Connection State:`, pc.connectionState);
+      console.log(`[WebRTC] Streamer->Viewer [${viewerSocketId}] Connection State:`, pc.connectionState);
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         try { pc.close(); } catch (e) {}
         streamerPeerConnections.delete(viewerSocketId);
@@ -526,9 +522,12 @@ window.TriboneraWebRTC = (function () {
       }
     };
 
-    // Create standard SDP Offer with audio and video
+    // Create standard SDP Offer for one-way screen broadcast
     try {
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false
+      });
       await pc.setLocalDescription(offer);
 
       socket.emit('webrtc:offer', {
@@ -536,7 +535,7 @@ window.TriboneraWebRTC = (function () {
         offer: pc.localDescription
       });
     } catch (err) {
-      console.error('Erro ao criar Offer para o espectador:', err);
+      console.error('[WebRTC] Erro ao criar Offer para o espectador:', err);
     }
   }
 
@@ -548,6 +547,7 @@ window.TriboneraWebRTC = (function () {
     if (pc && pc.signalingState !== 'closed') {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        console.log(`[WebRTC] Remote Answer aplicada no streamer para espectador ${viewerSocketId}`);
         
         // Drain any buffered ICE candidates received before remoteDescription was set
         const queue = streamerIceCandidateQueues.get(viewerSocketId) || [];
@@ -556,11 +556,11 @@ window.TriboneraWebRTC = (function () {
           try {
             await pc.addIceCandidate(cand);
           } catch (e) {
-            console.warn('Erro ao aplicar candidato na fila do streamer:', e);
+            console.warn('[WebRTC] Erro ao aplicar candidato na fila do streamer:', e);
           }
         }
       } catch (err) {
-        console.error('Erro ao aplicar Answer do espectador:', err);
+        console.error('[WebRTC] Erro ao aplicar Answer do espectador:', err);
       }
     }
   }
@@ -569,16 +569,31 @@ window.TriboneraWebRTC = (function () {
    * 4. Viewer receives Offer from Streamer and creates Answer
    */
   async function handleStreamerOffer(streamerSocketId, offer, socket, remoteVideoElement) {
-    // If watching another stream, close it
-    stopWatching();
+    // If watching another stream, close old peer connection
+    if (viewerPeerConnection) {
+      try { viewerPeerConnection.close(); } catch (e) {}
+      viewerPeerConnection = null;
+    }
 
     currentWatchedStreamerSocketId = streamerSocketId;
     if (!viewerIceCandidateQueues.has(streamerSocketId)) {
       viewerIceCandidateQueues.set(streamerSocketId, []);
     }
 
-    // Initialize fresh remote MediaStream for this viewer session
-    remoteMediaStream = new MediaStream();
+    // Hide connecting loader when video actually begins playback
+    const hideLoadingOverlay = () => {
+      const overlay = document.getElementById('video-connecting-overlay');
+      if (overlay) overlay.classList.add('hidden');
+    };
+
+    const showLoadingOverlay = (msg) => {
+      const overlay = document.getElementById('video-connecting-overlay');
+      const text = document.getElementById('video-connecting-text');
+      if (overlay) overlay.classList.remove('hidden');
+      if (text && msg) text.textContent = msg;
+    };
+
+    showLoadingOverlay('Estabelecendo conexão direta P2P...');
 
     viewerPeerConnection = new RTCPeerConnection(rtcConfig);
 
@@ -586,52 +601,68 @@ window.TriboneraWebRTC = (function () {
     viewerPeerConnection.ontrack = (event) => {
       console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams?.length}`);
 
-      if (!remoteMediaStream) {
-        remoteMediaStream = new MediaStream();
-      }
-
-      // Add track to unified remoteMediaStream if not already present
-      if (!remoteMediaStream.getTracks().some(t => t.id === event.track.id)) {
-        remoteMediaStream.addTrack(event.track);
-      }
-
       if (event.track) {
         event.track.enabled = true;
       }
 
       if (remoteVideoElement) {
+        // Direct stream binding using the browser's native stream instance
+        if (event.streams && event.streams[0]) {
+          remoteMediaStream = event.streams[0];
+        } else {
+          if (!remoteMediaStream) {
+            remoteMediaStream = new MediaStream();
+          }
+          if (!remoteMediaStream.getTracks().some(t => t.id === event.track.id)) {
+            remoteMediaStream.addTrack(event.track);
+          }
+        }
+
         if (remoteVideoElement.srcObject !== remoteMediaStream) {
           remoteVideoElement.srcObject = remoteMediaStream;
         }
+
         remoteVideoElement.playsInline = true;
         remoteVideoElement.autoplay = true;
 
-        const startPlayback = () => {
-          const playPromise = remoteVideoElement.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(err => {
-              console.warn('[WebRTC] Autoplay com som bloqueado pelo navegador, tentando muted:', err);
+        const attemptPlay = () => {
+          const promise = remoteVideoElement.play();
+          if (promise !== undefined) {
+            promise.then(() => {
+              hideLoadingOverlay();
+            }).catch(err => {
+              console.warn('[WebRTC] Autoplay bloqueado pelo navegador com áudio desmutado, tentando mudo:', err);
               remoteVideoElement.muted = true;
-              remoteVideoElement.play().catch(e => console.error('[WebRTC] Falha ao reproduzir vídeo:', e));
+              remoteVideoElement.play().then(() => {
+                hideLoadingOverlay();
+                const btnUnmute = document.getElementById('btn-unmute-prompt');
+                if (btnUnmute) btnUnmute.classList.remove('hidden');
+              }).catch(e => {
+                console.error('[WebRTC] Falha ao reproduzir vídeo:', e);
+              });
             });
           }
         };
 
-        startPlayback();
+        attemptPlay();
 
         event.track.onunmute = () => {
           console.log(`[WebRTC] Trilha ${event.track.kind} ativa (unmuted)`);
-          startPlayback();
+          attemptPlay();
         };
 
         remoteVideoElement.onloadedmetadata = () => {
-          console.log(`[WebRTC] Metadados do vídeo remoto recebidos: ${remoteVideoElement.videoWidth}x${remoteVideoElement.videoHeight}`);
-          startPlayback();
+          console.log(`[WebRTC] Metadados carregados: ${remoteVideoElement.videoWidth}x${remoteVideoElement.videoHeight}`);
+          attemptPlay();
+        };
+
+        remoteVideoElement.onplaying = () => {
+          hideLoadingOverlay();
         };
       }
     };
 
-    // Relay ICE Candidate
+    // Relay ICE Candidate to Streamer
     viewerPeerConnection.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit('webrtc:ice-candidate', {
@@ -642,16 +673,22 @@ window.TriboneraWebRTC = (function () {
     };
 
     viewerPeerConnection.onconnectionstatechange = () => {
-      console.log('Viewer WebRTC State:', viewerPeerConnection?.connectionState);
-      if (viewerPeerConnection?.connectionState === 'connected') {
+      const state = viewerPeerConnection?.connectionState;
+      console.log('[WebRTC] Viewer Connection State:', state);
+      if (state === 'connected') {
+        hideLoadingOverlay();
         startStatsMonitoring(viewerPeerConnection);
-      } else if (viewerPeerConnection?.connectionState === 'disconnected' || viewerPeerConnection?.connectionState === 'failed') {
+      } else if (state === 'connecting') {
+        showLoadingOverlay('Sincronizando fluxo de vídeo HD...');
+      } else if (state === 'disconnected' || state === 'failed') {
         stopStatsMonitoring();
+        showLoadingOverlay('Conexão perdida. Tentando reconectar...');
       }
     };
 
     try {
       await viewerPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('[WebRTC] Remote Offer aplicada no viewer com sucesso');
       
       // Drain any buffered ICE candidates received before remote description
       const queue = viewerIceCandidateQueues.get(streamerSocketId) || [];
@@ -660,7 +697,7 @@ window.TriboneraWebRTC = (function () {
         try {
           await viewerPeerConnection.addIceCandidate(cand);
         } catch (e) {
-          console.warn('Erro ao aplicar candidato na fila do viewer:', e);
+          console.warn('[WebRTC] Erro ao aplicar candidato na fila do viewer:', e);
         }
       }
 
@@ -672,7 +709,8 @@ window.TriboneraWebRTC = (function () {
         answer: viewerPeerConnection.localDescription
       });
     } catch (err) {
-      console.error('Erro ao processar Offer do streamer:', err);
+      console.error('[WebRTC] Erro ao processar Offer do streamer:', err);
+      showLoadingOverlay('Erro ao negociar conexão WebRTC.');
     }
   }
 
@@ -691,7 +729,7 @@ window.TriboneraWebRTC = (function () {
           try {
             await pc.addIceCandidate(rtcCand);
           } catch (err) {
-            console.warn('Erro ao adicionar ICE candidate no streamer:', err);
+            console.warn('[WebRTC] Erro ao adicionar ICE candidate no streamer:', err);
           }
         } else {
           // Queue until setRemoteDescription completes
@@ -702,12 +740,12 @@ window.TriboneraWebRTC = (function () {
         }
       } 
       // Or if we are viewer receiving candidate from streamer
-      else if (viewerPeerConnection) {
+      else if (viewerPeerConnection && currentWatchedStreamerSocketId === fromSocketId) {
         if (viewerPeerConnection.remoteDescription && viewerPeerConnection.remoteDescription.type) {
           try {
             await viewerPeerConnection.addIceCandidate(rtcCand);
           } catch (err) {
-            console.warn('Erro ao adicionar ICE candidate no viewer:', err);
+            console.warn('[WebRTC] Erro ao adicionar ICE candidate no viewer:', err);
           }
         } else {
           if (!viewerIceCandidateQueues.has(fromSocketId)) {
@@ -722,7 +760,7 @@ window.TriboneraWebRTC = (function () {
         viewerIceCandidateQueues.get(fromSocketId).push(rtcCand);
       }
     } catch (err) {
-      console.warn('Candidato ICE inválido recebido:', err);
+      console.warn('[WebRTC] Candidato ICE inválido recebido:', err);
     }
   }
 

@@ -286,6 +286,21 @@
           <!-- WebRTC Local Preview Video (when self is streaming) -->
           <video id="local-preview-video" class="stream-video preview hidden" autoplay playsinline muted></video>
 
+          <!-- Connecting / Buffering Direct P2P Overlay -->
+          <div class="video-connecting-overlay hidden" id="video-connecting-overlay">
+            <div class="connecting-spinner"></div>
+            <span id="video-connecting-text">Conectando à transmissão...</span>
+          </div>
+
+          <!-- Unmute Audio Click Prompt Overlay (if browser blocks audio autoplay) -->
+          <button id="btn-unmute-prompt" class="btn-unmute-prompt hidden">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            <span>Clique para Ativar o Áudio</span>
+          </button>
+
           <!-- Top-Right Floating Viewers Glass Badge (When watching/streaming) -->
           <div class="glass-viewers-badge hidden" id="glass-viewers-badge">
             <div class="glass-viewers-avatars" id="glass-viewers-avatars">

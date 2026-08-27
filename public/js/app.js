@@ -1254,6 +1254,16 @@ window.TriboneraApp = (function () {
     if (glassViewersBadge) glassViewersBadge.classList.remove('hidden');
     if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
 
+    const connectingOverlay = document.getElementById('video-connecting-overlay');
+    const connectingText = document.getElementById('video-connecting-text');
+    if (connectingOverlay) {
+      connectingOverlay.classList.remove('hidden');
+      if (connectingText) connectingText.textContent = `Conectando à transmissão de ${escapeHtml(stream.streamerName)}...`;
+    }
+
+    const btnUnmutePrompt = document.getElementById('btn-unmute-prompt');
+    if (btnUnmutePrompt) btnUnmutePrompt.classList.add('hidden');
+
     currentStreamerAvatar.textContent = stream.streamerName.charAt(0).toUpperCase();
     currentStreamerAvatar.className = `stage-streamer-avatar ${getAvatarColorClass(stream.streamerName)}`;
     currentStreamerTitle.textContent = stream.title || `Tela de ${stream.streamerName}`;
@@ -1306,6 +1316,11 @@ window.TriboneraApp = (function () {
     currentWatchedStream = null;
 
     TriboneraWebRTC.stopWatching();
+
+    const connectingOverlay = document.getElementById('video-connecting-overlay');
+    if (connectingOverlay) connectingOverlay.classList.add('hidden');
+    const btnUnmutePrompt = document.getElementById('btn-unmute-prompt');
+    if (btnUnmutePrompt) btnUnmutePrompt.classList.add('hidden');
 
     if (streamTimerInterval) {
       clearInterval(streamTimerInterval);
@@ -1442,6 +1457,23 @@ window.TriboneraApp = (function () {
     }
     if (btnDockScreenshot) {
       btnDockScreenshot.addEventListener('click', handleScreenshot);
+    }
+
+    // Unmute Click Prompt Handler (floating overlay)
+    const btnUnmutePrompt = document.getElementById('btn-unmute-prompt');
+    if (btnUnmutePrompt) {
+      btnUnmutePrompt.addEventListener('click', () => {
+        if (remoteVideo) {
+          remoteVideo.muted = false;
+          remoteVideo.volume = 1;
+          remoteVideo.play().catch(e => console.warn(e));
+          if (iconVolumeHigh) iconVolumeHigh.classList.remove('hidden');
+          if (iconVolumeMuted) iconVolumeMuted.classList.add('hidden');
+          if (volumeSlider) volumeSlider.value = 1;
+        }
+        btnUnmutePrompt.classList.add('hidden');
+        showToast('🔊 Áudio da transmissão ativado!', 'info');
+      });
     }
 
     // Audio Mute Toggle for Viewers
