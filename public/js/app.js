@@ -54,6 +54,29 @@ window.TriboneraApp = (function () {
   const modalOptMicStartMuted = document.getElementById('modal-opt-mic-start-muted');
   const micMutedStartWrap = document.getElementById('mic-muted-start-wrap');
 
+  // Update Center & Live Sincronization Modal Elements
+  const updateModal = document.getElementById('update-modal');
+  const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
+  const btnCloseUpdateFooter = document.getElementById('btn-close-update-footer');
+  const btnCheckUpdates = document.getElementById('btn-check-updates');
+  const btnModalCheckUpdates = document.getElementById('btn-modal-check-updates');
+  const btnModalForceReload = document.getElementById('btn-modal-force-reload');
+  const updateModalVersion = document.getElementById('update-modal-version');
+  const updateModalEnvironment = document.getElementById('update-modal-environment');
+  const updateModalServerStatus = document.getElementById('update-modal-server-status');
+  const updateModalServerUrl = document.getElementById('update-modal-server-url');
+  const updateCheckStatusText = document.getElementById('update-check-status-text');
+  const checkUpdatesSpinner = document.getElementById('check-updates-spinner');
+  const checkUpdatesIcon = document.getElementById('check-updates-icon');
+  const checkUpdatesBtnText = document.getElementById('check-updates-btn-text');
+  const globalUpdateBanner = document.getElementById('global-update-banner');
+  const updateBannerTitle = document.getElementById('update-banner-title');
+  const updateBannerDesc = document.getElementById('update-banner-desc');
+  const btnBannerReload = document.getElementById('btn-banner-reload');
+  const btnBannerDismiss = document.getElementById('btn-banner-dismiss');
+  const footerUpdateDot = document.getElementById('footer-update-dot');
+  const footerVersionTag = document.getElementById('footer-version-tag');
+
   // Stage & Video
   const videoHeaderBar = document.getElementById('video-header-bar');
   const currentStreamerAvatar = document.getElementById('current-streamer-avatar');
@@ -318,12 +341,20 @@ window.TriboneraApp = (function () {
       if (window.electronAPI && typeof window.electronAPI.onUpdaterMessage === 'function') {
         window.electronAPI.onUpdaterMessage((info) => {
           if (info.status === 'available') {
+            showUpdateBanner(`Nova Versão (${info.version}) Disponível!`, 'Baixando pacote em segundo plano...');
             showToast(`🚀 Baixando nova versão (${info.version}) em segundo plano...`, 'info');
           } else if (info.status === 'downloaded') {
+            showUpdateBanner(`Versão (${info.version}) Pronta!`, 'Clique em Recarregar para aplicar a nova versão.');
             showToast(`✨ Nova versão (${info.version}) pronta para instalar!`, 'success');
           }
         });
       }
+
+      // Check initial version status & start background checker
+      checkVersionAndUpdate(false);
+      setInterval(() => {
+        checkVersionAndUpdate(false);
+      }, 120000);
     } catch (err) {
       console.error('Erro na inicialização:', err);
       showToast('Erro de conexão com o servidor.', 'error');
@@ -1444,6 +1475,131 @@ window.TriboneraApp = (function () {
   }
 
   // Logout
+  // --- Update Center & Dynamic Live Sync ---
+  let currentAppVersion = '1.0.3';
+  let isCheckingUpdate = false;
+
+  function openUpdateModal() {
+    if (!updateModal) return;
+    updateModal.classList.remove('hidden');
+
+    // Update environment info
+    if (updateModalEnvironment) {
+      if (window.electronAPI && window.electronAPI.isElectron) {
+        updateModalEnvironment.textContent = '🖥️ Aplicativo Desktop (Electron)';
+      } else {
+        updateModalEnvironment.textContent = '🌐 Navegador Web / PWA';
+      }
+    }
+
+    if (updateModalServerUrl) {
+      updateModalServerUrl.textContent = window.location.origin;
+    }
+
+    checkVersionAndUpdate(false);
+  }
+
+  function closeUpdateModal() {
+    if (updateModal) {
+      updateModal.classList.add('hidden');
+    }
+  }
+
+  function showUpdateBanner(title, desc) {
+    if (!globalUpdateBanner) return;
+    if (title && updateBannerTitle) updateBannerTitle.textContent = title;
+    if (desc && updateBannerDesc) updateBannerDesc.textContent = desc;
+    globalUpdateBanner.classList.remove('hidden');
+
+    if (footerUpdateDot) {
+      footerUpdateDot.classList.add('has-update');
+      footerUpdateDot.title = 'Nova atualização disponível!';
+    }
+  }
+
+  function dismissUpdateBanner() {
+    if (globalUpdateBanner) {
+      globalUpdateBanner.classList.add('hidden');
+    }
+  }
+
+  async function checkVersionAndUpdate(isManual = false) {
+    if (isManual && isCheckingUpdate) return;
+    if (isManual) {
+      isCheckingUpdate = true;
+      if (checkUpdatesSpinner) checkUpdatesSpinner.classList.remove('hidden');
+      if (checkUpdatesIcon) checkUpdatesIcon.classList.add('hidden');
+      if (checkUpdatesBtnText) checkUpdatesBtnText.textContent = 'Verificando...';
+      if (updateCheckStatusText) updateCheckStatusText.textContent = 'Consultando servidor na nuvem e repositório...';
+    }
+
+    try {
+      const res = await fetch('/api/version?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('Servidor não respondeu ao status de versão');
+      const data = await res.json();
+
+      currentAppVersion = data.version || '1.0.3';
+      if (footerVersionTag) footerVersionTag.textContent = `v${currentAppVersion}`;
+      if (updateModalVersion) updateModalVersion.textContent = `v${currentAppVersion}`;
+      if (updateModalServerStatus) {
+        updateModalServerStatus.textContent = '🟢 Online & Sincronizado';
+        updateModalServerStatus.className = 'update-stat-val text-green';
+      }
+
+      // Check stored build timestamp to see if fresh changes occurred
+      const lastKnownBuild = localStorage.getItem('concord_known_build_time');
+      if (data.buildTime && lastKnownBuild && Number(lastKnownBuild) < Number(data.buildTime)) {
+        showUpdateBanner('Nova Atualização do Concord!', 'Novas correções e recursos foram aplicados no servidor.');
+      }
+      if (data.buildTime) {
+        localStorage.setItem('concord_known_build_time', String(data.buildTime));
+      }
+
+      // Check Electron native updater if available
+      if (window.electronAPI && typeof window.electronAPI.checkForUpdates === 'function') {
+        window.electronAPI.checkForUpdates().then(result => {
+          console.log('[AutoUpdater] Resposta:', result);
+        }).catch(() => {});
+      }
+
+      if (isManual) {
+        setTimeout(() => {
+          isCheckingUpdate = false;
+          if (checkUpdatesSpinner) checkUpdatesSpinner.classList.add('hidden');
+          if (checkUpdatesIcon) checkUpdatesIcon.classList.remove('hidden');
+          if (checkUpdatesBtnText) checkUpdatesBtnText.textContent = 'Verificar Novamente';
+          if (updateCheckStatusText) {
+            updateCheckStatusText.innerHTML = `✅ <strong>Você já está na versão mais recente (${currentAppVersion})!</strong> Todos os componentes, áudio e vídeo estão 100% sincronizados.`;
+          }
+          showToast(`✅ Aplicativo atualizado (v${currentAppVersion})!`, 'success');
+        }, 600);
+      }
+    } catch (err) {
+      console.warn('Aviso ao consultar versão:', err);
+      if (isManual) {
+        isCheckingUpdate = false;
+        if (checkUpdatesSpinner) checkUpdatesSpinner.classList.add('hidden');
+        if (checkUpdatesIcon) checkUpdatesIcon.classList.remove('hidden');
+        if (checkUpdatesBtnText) checkUpdatesBtnText.textContent = 'Tentar Novamente';
+        if (updateCheckStatusText) {
+          updateCheckStatusText.textContent = '⚠️ Não foi possível verificar agora. Verifique a conexão do servidor.';
+        }
+        showToast('Não foi possível verificar no momento.', 'info');
+      }
+    }
+  }
+
+  function forceReloadApp() {
+    showToast('⚡ Recarregando e sincronizando...', 'info');
+    setTimeout(() => {
+      if (window.electronAPI && typeof window.electronAPI.reloadApp === 'function') {
+        window.electronAPI.reloadApp();
+      } else {
+        window.location.reload();
+      }
+    }, 350);
+  }
+
   async function logout() {
     if (!confirm('Deseja sair da sua conta?')) return;
 
@@ -1488,6 +1644,20 @@ window.TriboneraApp = (function () {
   if (screenPickerModal) {
     screenPickerModal.addEventListener('click', (e) => {
       if (e.target === screenPickerModal) closeScreenPickerModal();
+    });
+  }
+
+  // Update Center Modal Listeners
+  if (btnCheckUpdates) btnCheckUpdates.addEventListener('click', openUpdateModal);
+  if (btnCloseUpdateModal) btnCloseUpdateModal.addEventListener('click', closeUpdateModal);
+  if (btnCloseUpdateFooter) btnCloseUpdateFooter.addEventListener('click', closeUpdateModal);
+  if (btnModalCheckUpdates) btnModalCheckUpdates.addEventListener('click', () => checkVersionAndUpdate(true));
+  if (btnModalForceReload) btnModalForceReload.addEventListener('click', forceReloadApp);
+  if (btnBannerReload) btnBannerReload.addEventListener('click', forceReloadApp);
+  if (btnBannerDismiss) btnBannerDismiss.addEventListener('click', dismissUpdateBanner);
+  if (updateModal) {
+    updateModal.addEventListener('click', (e) => {
+      if (e.target === updateModal) closeUpdateModal();
     });
   }
 

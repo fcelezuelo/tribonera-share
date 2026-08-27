@@ -14,6 +14,21 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="app-body">
+  <!-- Live Dynamic Update Alert Banner -->
+  <div class="global-update-banner hidden" id="global-update-banner">
+    <div class="update-banner-content">
+      <span class="update-banner-icon">🚀</span>
+      <div class="update-banner-text">
+        <strong id="update-banner-title">Nova Atualização do Concord Disponível!</strong>
+        <span id="update-banner-desc">Melhorias e correções aplicadas no servidor. Recarregue para sincronizar em tempo real.</span>
+      </div>
+    </div>
+    <div class="update-banner-actions">
+      <button class="btn btn-sm btn-primary" id="btn-banner-reload">⚡ Recarregar Agora</button>
+      <button class="btn btn-sm btn-secondary" id="btn-banner-dismiss">Depois</button>
+    </div>
+  </div>
+
   <!-- App Top Navigation Bar -->
   <header class="app-header" id="app-header">
     <div class="header-left">
@@ -215,7 +230,11 @@
           <span class="footer-status-text" id="footer-user-status">🟢 Online</span>
         </div>
         <div class="footer-controls">
-          <span class="tribo-tag">Concord v1.0</span>
+          <button class="btn-check-updates" id="btn-check-updates" title="Central de Atualizações & Sincronização">
+            <span class="update-pulse-dot" id="footer-update-dot"></span>
+            <span id="footer-version-tag">v1.0.3</span>
+            <span class="update-icon-badge">🔄</span>
+          </button>
         </div>
       </div>
     </aside>
@@ -733,6 +752,95 @@
           </svg>
           <span>Transmitir Ao Vivo</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Update Center & Dynamic Sync Modal -->
+  <div class="admin-modal-overlay hidden" id="update-modal">
+    <div class="admin-modal-container update-modal-container">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <div class="admin-badge-icon update-badge-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="admin-title">Central de Atualizações</h2>
+            <p class="admin-subtitle">Status de versão e sincronização em tempo real (OTA)</p>
+          </div>
+        </div>
+        <button class="btn-close-modal" id="btn-close-update-modal">&times;</button>
+      </div>
+
+      <div class="update-modal-body">
+        <!-- Status Card Grid -->
+        <div class="update-status-grid">
+          <div class="update-stat-card">
+            <span class="update-stat-label">Versão Atual</span>
+            <div class="update-stat-val-wrap">
+              <strong class="update-stat-val" id="update-modal-version">v1.0.3</strong>
+              <span class="update-live-tag">LIVE OTA</span>
+            </div>
+            <span class="update-stat-sub" id="update-modal-environment">Carregando...</span>
+          </div>
+
+          <div class="update-stat-card">
+            <span class="update-stat-label">Servidor na Nuvem</span>
+            <div class="update-stat-val-wrap">
+              <strong class="update-stat-val text-green" id="update-modal-server-status">🟢 Online</strong>
+            </div>
+            <span class="update-stat-sub" id="update-modal-server-url">Conectado via WebSocket</span>
+          </div>
+        </div>
+
+        <!-- Action Box -->
+        <div class="update-action-box">
+          <div class="update-action-info">
+            <h4>Verificação de Atualizações</h4>
+            <p id="update-check-status-text">O Concord sincroniza automaticamente novidades do servidor. Você também pode verificar manualmente ou recarregar.</p>
+          </div>
+
+          <div class="update-action-btns">
+            <button class="btn btn-primary" id="btn-modal-check-updates">
+              <span id="check-updates-spinner" class="spinner-inline hidden"></span>
+              <span id="check-updates-icon">🔍</span>
+              <span id="check-updates-btn-text">Verificar Atualizações</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-modal-force-reload" title="Recarrega o aplicativo limpando cache">
+              <span>⚡ Recarregar Interface (Hot Reload)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Guide Box: How updating without rebuild works -->
+        <div class="update-guide-box">
+          <div class="guide-title">
+            <span>💡 Como funciona a atualização automática sem rebuild?</span>
+          </div>
+          <div class="guide-items">
+            <div class="guide-item">
+              <span class="guide-icon">☁️</span>
+              <div class="guide-text">
+                <strong>Atualizações no Ar (OTA - 99% das mudanças)</strong>
+                <p>O aplicativo desktop e web carrega os recursos diretamente do seu servidor na nuvem (Render/Web). Quando você altera telas, corrige bugs, adiciona som ou ajusta vídeo e sobe no servidor, <strong>todos os seus amigos recebem a novidade instantaneamente</strong> na próxima vez que abrem o Concord ou clicam em <em>Recarregar</em>, sem precisar gerar outro <code>.exe</code>!</p>
+              </div>
+            </div>
+
+            <div class="guide-item">
+              <span class="guide-icon">📦</span>
+              <div class="guide-text">
+                <strong>Quando é necessário rebuildar o <code>.exe</code>?</strong>
+                <p>Apenas se você alterar arquivos nativos do Electron do sistema operacional (como <code>electron-main.cjs</code> para novas permissões de hardware ou ícones de janela). Todo o restante do Concord é 100% dinâmico.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="update-modal-footer">
+        <button class="btn btn-secondary" id="btn-close-update-footer">Fechar</button>
       </div>
     </div>
   </div>

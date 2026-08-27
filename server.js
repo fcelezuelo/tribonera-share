@@ -24,6 +24,8 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
+const APP_VERSION = '1.0.3';
+const SERVER_BUILD_TIME = Date.now();
 
 const DATA_DIR = process.env.CONCORD_DATA_DIR || __dirname;
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -110,6 +112,17 @@ function authenticateRequest(req) {
 // Routes
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// Version & Auto-Sync API
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: APP_VERSION,
+    buildTime: SERVER_BUILD_TIME,
+    serverUrl: req.protocol + '://' + req.get('host'),
+    otaEnabled: true,
+    message: 'Servidor Concord atualizado e sincronizado em tempo real.'
+  });
 });
 
 // --- REST Auth APIs ---
@@ -629,6 +642,8 @@ io.on('connection', (socket) => {
 
   // Send initial data to this socket
   socket.emit('init:state', {
+    appVersion: APP_VERSION,
+    serverBuildTime: SERVER_BUILD_TIME,
     currentUser: {
       code: user.code,
       nickname: user.nickname,
