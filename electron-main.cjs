@@ -107,11 +107,13 @@ async function createWindow() {
         fetchWindowIcons: true
       });
 
-      // Abre modal nativo ou escolhe a tela principal com áudio loopback habilitado
       if (sources.length > 0) {
+        // Prioriza a tela principal inteira para garantir captura de áudio sem erro do Windows
+        const primarySource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+        
         callback({
-          video: sources[0],
-          audio: 'loopback' // Habilita captura de som estéreo total do sistema operacional
+          video: primarySource,
+          audio: request.audio ? 'loopback' : undefined
         });
       } else {
         callback(null);

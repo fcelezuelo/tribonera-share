@@ -269,51 +269,91 @@ window.TriboneraWebRTC = (function () {
 
       let capturedStream = null;
       const requestSystemAudio = audioConfig && audioConfig.systemAudio !== false;
+      let audioActuallyCaptured = false;
 
-      // Primary attempt: Request screen capture with full 60 FPS (or selected FPS) and system audio
-      const displayMediaOptions = {
-        video: {
-          cursor: 'always',
-          width: { ideal: width, max: width >= 2560 ? 2560 : 1920 },
-          height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
-          frameRate: { ideal: frameRate, max: frameRate }
-        },
-        audio: requestSystemAudio ? {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 2,
-          sampleRate: 48000,
-          suppressLocalAudioPlayback: false
-        } : false,
-        systemAudio: requestSystemAudio ? 'include' : 'exclude',
-        selfBrowserSurface: 'exclude',
-        surfaceSwitching: 'include'
-      };
-
+      // Tier 1: Try display capture with unconstrained audio (safest standard for Chrome/Edge/Electron)
       try {
-        capturedStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+        capturedStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always',
+            width: { ideal: width, max: width >= 2560 ? 2560 : 1920 },
+            height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
+            frameRate: { ideal: frameRate, max: frameRate }
+          },
+          audio: requestSystemAudio ? {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            suppressLocalAudioPlayback: false
+          } : false,
+          systemAudio: requestSystemAudio ? 'include' : 'exclude',
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include'
+        });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
           // User clicked cancel in browser popup
           throw optErr;
         }
-        console.warn('Tentativa com áudio estéreo padrão falhou, tentando fallback com áudio habilitado:', optErr);
-        // Graceful fallback for windows that don't support audio capture in Chrome
-        capturedStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: 'always',
-            width: { ideal: width },
-            height: { ideal: height },
-            frameRate: { ideal: frameRate, max: frameRate }
-          },
-          audio: requestSystemAudio ? true : false
-        });
+        console.warn('Tentativa inicial com áudio avançado falhou, tentando fallback com áudio simples:', optErr);
+
+        // Tier 2: Try standard audio: true without strict constraints
+        try {
+          capturedStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'always',
+              width: { ideal: width },
+              height: { ideal: height },
+              frameRate: { ideal: frameRate, max: frameRate }
+            },
+            audio: requestSystemAudio ? true : false,
+            systemAudio: requestSystemAudio ? 'include' : 'exclude'
+          });
+        } catch (audioErr) {
+          if (audioErr.name === 'NotAllowedError') {
+            throw audioErr;
+          }
+          console.warn('Captura com áudio direto falhou (ex: janela do Windows sem driver de som), iniciando vídeo sem travar:', audioErr);
+
+          // Tier 3: Fallback to video-only so screen share NEVER fails
+          capturedStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'always',
+              width: { ideal: width },
+              height: { ideal: height },
+              frameRate: { ideal: frameRate, max: frameRate }
+            },
+            audio: false
+          });
+
+          // If system audio was requested, attempt to seamlessly attach default audio device as fallback
+          if (requestSystemAudio && capturedStream) {
+            try {
+              const fallbackAudio = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: false,
+                  noiseSuppression: false,
+                  autoGainControl: false
+                },
+                video: false
+              });
+              if (fallbackAudio.getAudioTracks().length > 0) {
+                const aTrack = fallbackAudio.getAudioTracks()[0];
+                capturedStream.addTrack(aTrack);
+                console.log('[WebRTC] Áudio conectado via canal de som de fallback.');
+              }
+            } catch (micFallbackErr) {
+              console.warn('[WebRTC] Áudio fallback indisponível (transmissão de vídeo iniciada):', micFallbackErr);
+            }
+          }
+        }
       }
 
       if (!capturedStream) {
         throw new Error('Não foi possível obter o stream de tela.');
       }
+
+      audioActuallyCaptured = capturedStream.getAudioTracks().length > 0;
 
       // Check if user also requested microphone mixing
       let finalStream = capturedStream;

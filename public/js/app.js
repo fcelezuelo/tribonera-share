@@ -60,15 +60,23 @@ window.TriboneraApp = (function () {
   const glassViewersCount = document.getElementById('glass-viewers-count');
   const glassLatencyBadge = document.getElementById('glass-latency-badge');
 
-  // Stream Dock Elements
+  // Minimal Stream Footer Elements
   const btnDockScreenshot = document.getElementById('btn-dock-screenshot');
   const btnDockPip = document.getElementById('btn-dock-pip');
   const btnDockFullscreen = document.getElementById('btn-dock-fullscreen');
-  const btnDockStats = document.getElementById('btn-dock-stats');
-  const dockFpsVal = document.getElementById('dock-fps-val');
-  const dockBitrateVal = document.getElementById('dock-bitrate-val');
-  const dockLatencyVal = document.getElementById('dock-latency-val');
-  const dockStabilityVal = document.getElementById('dock-stability-val');
+  const footerQualityTag = document.getElementById('footer-quality-tag');
+  const footerAudioTag = document.getElementById('footer-audio-tag');
+
+  // Mobile Drawer & Navigation Elements
+  const btnMobileSidebarToggle = document.getElementById('btn-mobile-sidebar-toggle');
+  const btnMobileUsersToggle = document.getElementById('btn-mobile-users-toggle');
+  const mobileDrawerOverlay = document.getElementById('mobile-drawer-overlay');
+  const sidebarChannels = document.getElementById('sidebar-channels');
+  const sidebarUsers = document.getElementById('sidebar-users');
+  const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+  const navBtnStage = document.getElementById('nav-btn-stage');
+  const navBtnChannels = document.getElementById('nav-btn-channels');
+  const navBtnMembers = document.getElementById('nav-btn-members');
 
   // Video Controls
   const btnToggleAudio = document.getElementById('btn-toggle-audio');
@@ -662,6 +670,9 @@ window.TriboneraApp = (function () {
     }
     updateLiveAudioStatus(result.hasAudio, false);
 
+    if (footerQualityTag) footerQualityTag.textContent = `${result.resolution} ${result.fps} FPS`;
+    if (footerAudioTag) footerAudioTag.textContent = result.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Áudio';
+
     // Update left sidebar controls
     viewNotStreaming.classList.add('hidden');
     viewIsStreaming.classList.remove('hidden');
@@ -671,15 +682,6 @@ window.TriboneraApp = (function () {
     streamStartTime = Date.now();
     updateStreamTimer();
     streamTimerInterval = setInterval(updateStreamTimer, 1000);
-
-    // Initial dock values
-    if (dockFpsVal) dockFpsVal.textContent = `${result.fps}.0 FPS`;
-    if (dockBitrateVal) dockBitrateVal.textContent = 'Calculando...';
-    if (dockLatencyVal) dockLatencyVal.textContent = '< 15 ms';
-    if (dockStabilityVal) {
-      dockStabilityVal.textContent = '100% Excelente';
-      dockStabilityVal.className = 'dock-metric-value text-blue';
-    }
 
     // Notify server via Socket.IO
     socket.emit('stream:start', {
@@ -866,21 +868,15 @@ window.TriboneraApp = (function () {
     // Audio status indicator
     updateLiveAudioStatus(stream.hasAudio, false);
 
+    if (footerQualityTag) footerQualityTag.textContent = `${stream.resolution} ${stream.fps} FPS`;
+    if (footerAudioTag) footerAudioTag.textContent = stream.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Áudio';
+
     // Ensure audio volume is at 100% and unmuted for remote playback
     remoteVideo.muted = false;
     remoteVideo.volume = 1;
     if (volumeSlider) volumeSlider.value = 1;
     if (iconVolumeHigh) iconVolumeHigh.classList.remove('hidden');
     if (iconVolumeMuted) iconVolumeMuted.classList.add('hidden');
-
-    // Dock initial values
-    if (dockFpsVal) dockFpsVal.textContent = `${stream.fps || 60}.0 FPS`;
-    if (dockBitrateVal) dockBitrateVal.textContent = 'Calculando...';
-    if (dockLatencyVal) dockLatencyVal.textContent = '< 20 ms';
-    if (dockStabilityVal) {
-      dockStabilityVal.textContent = '100% Excelente';
-      dockStabilityVal.className = 'dock-metric-value text-blue';
-    }
 
     updateViewersList(stream.viewers || []);
 
@@ -1081,14 +1077,84 @@ window.TriboneraApp = (function () {
         statsHud.classList.toggle('hidden');
       });
     }
-    if (btnDockStats) {
-      btnDockStats.addEventListener('click', () => {
-        statsHud.classList.toggle('hidden');
-      });
-    }
     if (btnCloseStats) {
       btnCloseStats.addEventListener('click', () => {
         statsHud.classList.add('hidden');
+      });
+    }
+  }
+
+  // --- Mobile Navigation & Drawers ---
+  function setupMobileNavigation() {
+    function closeAllMobileDrawers() {
+      if (sidebarChannels) sidebarChannels.classList.remove('mobile-drawer-open');
+      if (sidebarUsers) sidebarUsers.classList.remove('mobile-drawer-open');
+      if (mobileDrawerOverlay) mobileDrawerOverlay.classList.add('hidden');
+    }
+
+    function updateMobileNavActive(activeTab) {
+      if (navBtnStage) navBtnStage.classList.toggle('active', activeTab === 'stage');
+      if (navBtnChannels) navBtnChannels.classList.toggle('active', activeTab === 'channels');
+      if (navBtnMembers) navBtnMembers.classList.toggle('active', activeTab === 'members');
+    }
+
+    if (btnMobileSidebarToggle) {
+      btnMobileSidebarToggle.addEventListener('click', () => {
+        if (sidebarUsers) sidebarUsers.classList.remove('mobile-drawer-open');
+        const isOpen = sidebarChannels.classList.toggle('mobile-drawer-open');
+        if (isOpen) {
+          if (mobileDrawerOverlay) mobileDrawerOverlay.classList.remove('hidden');
+          updateMobileNavActive('channels');
+        } else {
+          if (mobileDrawerOverlay) mobileDrawerOverlay.classList.add('hidden');
+          updateMobileNavActive('stage');
+        }
+      });
+    }
+
+    if (btnMobileUsersToggle) {
+      btnMobileUsersToggle.addEventListener('click', () => {
+        if (sidebarChannels) sidebarChannels.classList.remove('mobile-drawer-open');
+        const isOpen = sidebarUsers.classList.toggle('mobile-drawer-open');
+        if (isOpen) {
+          if (mobileDrawerOverlay) mobileDrawerOverlay.classList.remove('hidden');
+          updateMobileNavActive('members');
+        } else {
+          if (mobileDrawerOverlay) mobileDrawerOverlay.classList.add('hidden');
+          updateMobileNavActive('stage');
+        }
+      });
+    }
+
+    if (mobileDrawerOverlay) {
+      mobileDrawerOverlay.addEventListener('click', () => {
+        closeAllMobileDrawers();
+        updateMobileNavActive('stage');
+      });
+    }
+
+    if (navBtnStage) {
+      navBtnStage.addEventListener('click', () => {
+        closeAllMobileDrawers();
+        updateMobileNavActive('stage');
+      });
+    }
+
+    if (navBtnChannels) {
+      navBtnChannels.addEventListener('click', () => {
+        if (sidebarUsers) sidebarUsers.classList.remove('mobile-drawer-open');
+        if (sidebarChannels) sidebarChannels.classList.add('mobile-drawer-open');
+        if (mobileDrawerOverlay) mobileDrawerOverlay.classList.remove('hidden');
+        updateMobileNavActive('channels');
+      });
+    }
+
+    if (navBtnMembers) {
+      navBtnMembers.addEventListener('click', () => {
+        if (sidebarChannels) sidebarChannels.classList.remove('mobile-drawer-open');
+        if (sidebarUsers) sidebarUsers.classList.add('mobile-drawer-open');
+        if (mobileDrawerOverlay) mobileDrawerOverlay.classList.remove('hidden');
+        updateMobileNavActive('members');
       });
     }
   }
@@ -1163,6 +1229,7 @@ window.TriboneraApp = (function () {
 
   setupVideoControls();
   setupSoundControl();
+  setupMobileNavigation();
   init();
 
   return {

@@ -17,6 +17,15 @@
   <!-- App Top Navigation Bar -->
   <header class="app-header" id="app-header">
     <div class="header-left">
+      <!-- Mobile Sidebar Drawer Toggle Button -->
+      <button id="btn-mobile-sidebar-toggle" class="btn-mobile-icon" title="Abrir Canais" aria-label="Abrir Menu de Canais">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+
       <div class="server-badge">
         <div class="server-icon server-icon-concord">
           <img src="/img/concord_icon.png" alt="Concord" class="server-concord-logo">
@@ -39,6 +48,16 @@
     </div>
 
     <div class="header-right">
+      <!-- Mobile Members Drawer Toggle Button -->
+      <button id="btn-mobile-users-toggle" class="btn-mobile-icon" title="Ver Membros" aria-label="Ver Lista de Membros">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+      </button>
+
       <!-- Sound Effects Toggle Button -->
       <button id="btn-toggle-sound" class="btn btn-sound-toggle" title="Efeitos Sonoros (Ativado)" aria-label="Alternar Efeitos Sonoros">
         <svg class="icon-sound icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -329,71 +348,38 @@
           </div>
         </div>
 
-        <!-- Modern Stream Hub & Live Dock (Purple Mark Redesign) -->
-        <div class="stage-info-grid hidden" id="viewers-bar">
-          <!-- Card 1: Active Viewers List -->
-          <div class="stage-subcard viewers-subcard">
-            <div class="subcard-header-row">
-              <div class="subcard-title-group">
-                <span class="pulse-dot-green"></span>
-                <h3 class="subcard-title">ASSISTINDO AGORA (<span id="viewers-count-num">0</span>)</h3>
-              </div>
-              <span class="subcard-badge-tag" id="viewers-role-hint">Audiência ao Vivo</span>
+        <!-- Discord-like Minimal Live Viewers & Info Bar -->
+        <div class="stream-minimal-footer hidden" id="viewers-bar">
+          <div class="minimal-footer-left">
+            <div class="minimal-viewers-count">
+              <span class="pulse-dot-green"></span>
+              <span>Assistindo (<strong id="viewers-count-num">0</strong>)</span>
             </div>
             <div class="viewers-chips-container" id="viewers-chips-container">
-              <span class="empty-viewers-text">Nenhum espectador no momento</span>
+              <span class="empty-viewers-text">Nenhum espectador</span>
             </div>
           </div>
 
-          <!-- Card 2: Performance Hub & Action Deck -->
-          <div class="stage-subcard stream-dock-subcard">
-            <div class="dock-metrics-grid">
-              <div class="dock-metric-item">
-                <span class="dock-metric-label">TAXA DE QUADROS</span>
-                <span class="dock-metric-value highlight" id="dock-fps-val">60.0 FPS</span>
-              </div>
-              <div class="dock-metric-item">
-                <span class="dock-metric-label">BITRATE DA TRANSMISSÃO</span>
-                <span class="dock-metric-value" id="dock-bitrate-val">6.2 Mbps</span>
-              </div>
-              <div class="dock-metric-item">
-                <span class="dock-metric-label">LATÊNCIA DIRETA</span>
-                <span class="dock-metric-value text-success" id="dock-latency-val">&lt; 15 ms</span>
-              </div>
-              <div class="dock-metric-item">
-                <span class="dock-metric-label">QUALIDADE DO LINK</span>
-                <span class="dock-metric-value text-blue" id="dock-stability-val">100% Excelente</span>
-              </div>
-            </div>
-
-            <div class="dock-action-buttons">
-              <button id="btn-dock-screenshot" class="btn-dock-action" title="Tirar uma foto em alta definição da tela transmitida">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-                <span>Screenshot</span>
-              </button>
-              <button id="btn-dock-pip" class="btn-dock-action" title="Abrir em mini janela flutuante">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
-                </svg>
-                <span>PiP</span>
-              </button>
-              <button id="btn-dock-fullscreen" class="btn-dock-action" title="Expandir para tela cheia">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                </svg>
-                <span>Tela Cheia</span>
-              </button>
-              <button id="btn-dock-stats" class="btn-dock-action" title="Abrir diagnóstico detalhado WebRTC">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 20V10M12 20V4M6 20v-6"></path>
-                </svg>
-                <span>Diagnóstico</span>
-              </button>
-            </div>
+          <div class="minimal-footer-right">
+            <div class="stream-tag-pill" id="footer-quality-tag">1080p 60 FPS</div>
+            <div class="stream-tag-pill tag-audio" id="footer-audio-tag">🔊 Som Ativo</div>
+            <button id="btn-dock-screenshot" class="btn-minimal-action" title="📸 Tirar Screenshot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </button>
+            <button id="btn-dock-pip" class="btn-minimal-action" title="Janela Flutuante (PiP)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
+              </svg>
+            </button>
+            <button id="btn-dock-fullscreen" class="btn-minimal-action" title="Tela Cheia">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -441,6 +427,36 @@
       </div>
     </aside>
   </div>
+
+  <!-- Mobile Drawer Backdrop Overlay -->
+  <div class="mobile-drawer-overlay hidden" id="mobile-drawer-overlay"></div>
+
+  <!-- Mobile Bottom Tab Bar (Visible only on mobile & tablet) -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mobile-nav-btn active" id="nav-btn-stage" data-view="stage">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+      <span>Transmissão</span>
+    </button>
+    <button class="mobile-nav-btn" id="nav-btn-channels" data-view="channels">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+      <span>Canais</span>
+    </button>
+    <button class="mobile-nav-btn" id="nav-btn-members" data-view="members">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+      <span>Membros</span>
+    </button>
+  </nav>
 
   <!-- ADMIN MODAL / DRAWER (Visible for admin role only) -->
   <div class="admin-modal-overlay hidden" id="admin-modal-overlay">
