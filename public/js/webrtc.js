@@ -577,23 +577,22 @@ window.TriboneraWebRTC = (function () {
       viewerIceCandidateQueues.set(streamerSocketId, []);
     }
 
+    // Initialize fresh remote MediaStream for this viewer session
+    remoteMediaStream = new MediaStream();
+
     viewerPeerConnection = new RTCPeerConnection(rtcConfig);
 
     // When remote track arrives, attach directly to video element and trigger play
     viewerPeerConnection.ontrack = (event) => {
       console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams?.length}`);
 
-      let streamToPlay = (event.streams && event.streams[0]) ? event.streams[0] : null;
-      if (!streamToPlay) {
-        if (!remoteMediaStream) {
-          remoteMediaStream = new MediaStream();
-        }
-        if (!remoteMediaStream.getTracks().some(t => t.id === event.track.id)) {
-          remoteMediaStream.addTrack(event.track);
-        }
-        streamToPlay = remoteMediaStream;
-      } else {
-        remoteMediaStream = streamToPlay;
+      if (!remoteMediaStream) {
+        remoteMediaStream = new MediaStream();
+      }
+
+      // Add track to unified remoteMediaStream if not already present
+      if (!remoteMediaStream.getTracks().some(t => t.id === event.track.id)) {
+        remoteMediaStream.addTrack(event.track);
       }
 
       if (event.track) {
@@ -601,8 +600,8 @@ window.TriboneraWebRTC = (function () {
       }
 
       if (remoteVideoElement) {
-        if (remoteVideoElement.srcObject !== streamToPlay) {
-          remoteVideoElement.srcObject = streamToPlay;
+        if (remoteVideoElement.srcObject !== remoteMediaStream) {
+          remoteVideoElement.srcObject = remoteMediaStream;
         }
         remoteVideoElement.playsInline = true;
         remoteVideoElement.autoplay = true;
@@ -611,7 +610,7 @@ window.TriboneraWebRTC = (function () {
           const playPromise = remoteVideoElement.play();
           if (playPromise !== undefined) {
             playPromise.catch(err => {
-              console.warn('[WebRTC] Autoplay bloqueado pelo navegador, tentando silenciado:', err);
+              console.warn('[WebRTC] Autoplay com som bloqueado pelo navegador, tentando muted:', err);
               remoteVideoElement.muted = true;
               remoteVideoElement.play().catch(e => console.error('[WebRTC] Falha ao reproduzir vídeo:', e));
             });
@@ -626,7 +625,7 @@ window.TriboneraWebRTC = (function () {
         };
 
         remoteVideoElement.onloadedmetadata = () => {
-          console.log(`[WebRTC] Metadados do vídeo remoto: ${remoteVideoElement.videoWidth}x${remoteVideoElement.videoHeight}`);
+          console.log(`[WebRTC] Metadados do vídeo remoto recebidos: ${remoteVideoElement.videoWidth}x${remoteVideoElement.videoHeight}`);
           startPlayback();
         };
       }

@@ -438,6 +438,13 @@ window.TriboneraApp = (function () {
 
     // Initial state from server
     socket.on('init:state', (data) => {
+      if (data && data.appVersion) {
+        currentAppVersion = data.appVersion;
+        if (footerVersionTag) footerVersionTag.textContent = `v${data.appVersion}`;
+        if (updateModalVersion) updateModalVersion.textContent = `v${data.appVersion}`;
+        const bannerPill = document.getElementById('update-banner-version-pill');
+        if (bannerPill) bannerPill.textContent = `v${data.appVersion}`;
+      }
       if (data && Array.isArray(data.activeStreams)) {
         activeStreamsList = data.activeStreams;
         renderActiveStreamsSidebar(data.activeStreams);
@@ -453,7 +460,7 @@ window.TriboneraApp = (function () {
         }
         showNotification({
           title: 'Transmissão Ao Vivo 🔴',
-          message: `<strong>${escapeHtml(stream.streamerName)}</strong> is now live!`,
+          message: `<strong>${escapeHtml(stream.streamerName)}</strong> está transmitindo a tela agora!`,
           avatarText: stream.streamerName ? stream.streamerName.charAt(0).toUpperCase() : '🔴',
           type: 'live',
           duration: 6500,
@@ -482,23 +489,26 @@ window.TriboneraApp = (function () {
       showToast(`👀 ${viewerNickname} começou a assistir sua tela!`);
     });
 
-    socket.on('webrtc:offer', ({ fromSocketId, fromNickname, offer }) => {
+    socket.on('webrtc:offer', ({ fromSocketId, fromNickname, streamerCode, title, resolution, fps, hasAudio, startedAt, offer }) => {
       console.log(`Offer WebRTC recebida de ${fromNickname} (${fromSocketId})`);
       
       const streamInfo = activeStreamsList.find(s => s.streamerSocketId === fromSocketId || s.streamerName === fromNickname);
       const streamerName = streamInfo?.streamerName || fromNickname || 'Transmissão';
-      const resolution = streamInfo?.resolution || '1080p';
-      const fps = streamInfo?.fps || 60;
-      const startedAt = streamInfo?.startedAt || Date.now();
-      const hasAudio = streamInfo ? streamInfo.hasAudio : true;
+      const streamTitle = title || streamInfo?.title || `Tela de ${streamerName}`;
+      const streamRes = resolution || streamInfo?.resolution || '1080p';
+      const streamFps = fps || streamInfo?.fps || 60;
+      const streamStarted = startedAt || streamInfo?.startedAt || Date.now();
+      const streamAudio = hasAudio !== undefined ? hasAudio : (streamInfo ? streamInfo.hasAudio : true);
 
       currentWatchedStream = {
         streamerSocketId: fromSocketId,
+        streamerCode: streamerCode || streamInfo?.streamerCode,
         streamerName: streamerName,
-        resolution: resolution,
-        fps: fps,
-        hasAudio: hasAudio,
-        startedAt: startedAt,
+        title: streamTitle,
+        resolution: streamRes,
+        fps: streamFps,
+        hasAudio: streamAudio,
+        startedAt: streamStarted,
         viewers: streamInfo?.viewers || []
       };
 
@@ -518,16 +528,16 @@ window.TriboneraApp = (function () {
       if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
 
       currentStreamerAvatar.textContent = streamerName.charAt(0).toUpperCase();
-      currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(streamerName)}`;
-      currentStreamerTitle.textContent = `Tela de ${streamerName}`;
-      currentStreamerSpecs.textContent = `${resolution} • ${fps} FPS • WebRTC Direct`;
+      currentStreamerAvatar.className = `stage-streamer-avatar ${getAvatarColorClass(streamerName)}`;
+      currentStreamerTitle.textContent = streamTitle;
+      currentStreamerSpecs.textContent = `${streamRes} • ${streamFps} FPS • WebRTC Direct`;
 
       if (streamTimerInterval) clearInterval(streamTimerInterval);
-      streamStartTime = startedAt;
+      streamStartTime = streamStarted;
       updateStreamTimer();
       streamTimerInterval = setInterval(updateStreamTimer, 1000);
 
-      updateLiveAudioStatus(hasAudio, false);
+      updateLiveAudioStatus(streamAudio, false);
 
       remoteVideo.muted = false;
       remoteVideo.volume = 1;
@@ -1245,8 +1255,8 @@ window.TriboneraApp = (function () {
     if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
 
     currentStreamerAvatar.textContent = stream.streamerName.charAt(0).toUpperCase();
-    currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(stream.streamerName)}`;
-    currentStreamerTitle.textContent = `Tela de ${stream.streamerName}`;
+    currentStreamerAvatar.className = `stage-streamer-avatar ${getAvatarColorClass(stream.streamerName)}`;
+    currentStreamerTitle.textContent = stream.title || `Tela de ${stream.streamerName}`;
     currentStreamerSpecs.textContent = `${stream.resolution} • ${stream.fps} FPS • WebRTC Direct`;
 
     // Start Live Timer synchronized with streamer startedAt
@@ -1269,6 +1279,16 @@ window.TriboneraApp = (function () {
     if (iconVolumeMuted) iconVolumeMuted.classList.add('hidden');
 
     updateViewersList(stream.viewers || []);
+
+    // On mobile devices, automatically close drawers and switch tab to stage
+    if (window.innerWidth <= 768) {
+      if (sidebarChannels) sidebarChannels.classList.remove('mobile-drawer-open');
+      if (sidebarUsers) sidebarUsers.classList.remove('mobile-drawer-open');
+      if (mobileDrawerOverlay) mobileDrawerOverlay.classList.add('hidden');
+      if (navBtnStage) navBtnStage.classList.add('active');
+      if (navBtnChannels) navBtnChannels.classList.remove('active');
+      if (navBtnMembers) navBtnMembers.classList.remove('active');
+    }
 
     // Emit to server to join viewer room and trigger WebRTC Offer
     socket.emit('stream:join-viewer', {
@@ -1606,7 +1626,7 @@ window.TriboneraApp = (function () {
 
   // Logout
   // --- Update Center & Dynamic Live Sync ---
-  let currentAppVersion = '1.0.3';
+  let currentAppVersion = '1.0.4';
   let isCheckingUpdate = false;
 
   function openUpdateModal() {

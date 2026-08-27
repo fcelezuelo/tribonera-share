@@ -24,8 +24,21 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
-const APP_VERSION = '1.0.3';
 const SERVER_BUILD_TIME = Date.now();
+
+// Dynamically read version from package.json
+function getAppVersion() {
+  try {
+    const pkgPath = path.join(__dirname, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      return pkg.version || '1.0.4';
+    }
+  } catch (e) {
+    console.warn('Erro ao ler package.json:', e);
+  }
+  return '1.0.4';
+}
 
 const DATA_DIR = process.env.CONCORD_DATA_DIR || __dirname;
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -117,7 +130,7 @@ app.get('/app', (req, res) => {
 // Version & Auto-Sync API
 app.get('/api/version', (req, res) => {
   res.json({
-    version: APP_VERSION,
+    version: getAppVersion(),
     buildTime: SERVER_BUILD_TIME,
     serverUrl: req.protocol + '://' + req.get('host'),
     otaEnabled: true,
@@ -642,7 +655,7 @@ io.on('connection', (socket) => {
 
   // Send initial data to this socket
   socket.emit('init:state', {
-    appVersion: APP_VERSION,
+    appVersion: getAppVersion(),
     serverBuildTime: SERVER_BUILD_TIME,
     currentUser: {
       code: user.code,
@@ -793,9 +806,16 @@ io.on('connection', (socket) => {
 
   // 5. WebRTC Relay Signaling: Offer (Streamer -> Viewer)
   socket.on('webrtc:offer', ({ targetSocketId, offer }) => {
+    const stream = memoryStreams.get(socket.id);
     io.to(targetSocketId).emit('webrtc:offer', {
       fromSocketId: socket.id,
       fromNickname: socket.user.nickname,
+      streamerCode: socket.user.code,
+      title: stream?.title || `Tela de ${socket.user.nickname}`,
+      resolution: stream?.resolution || '1080p',
+      fps: stream?.fps || 60,
+      hasAudio: stream ? !!stream.hasAudio : true,
+      startedAt: stream?.startedAt || Date.now(),
       offer
     });
   });
