@@ -732,17 +732,17 @@ io.on('connection', (socket) => {
   });
 
   // 3. Viewer requests to watch a specific stream
-  const handleWatchStream = ({ streamerSocketId }) => {
+  const handleWatchStream = (data = {}) => {
     const viewer = onlineUsers.get(socket.id);
     if (!viewer) return;
 
-    let targetId = streamerSocketId;
+    let targetId = data.streamerSocketId || data.streamId || data.streamerCode;
     let stream = memoryStreams.get(targetId);
 
-    // Fallback: check if streamerSocketId was actually a streamerCode
+    // Fallback: check if targetId matches streamerCode, streamerSocketId or id
     if (!stream) {
       for (const [sId, s] of memoryStreams.entries()) {
-        if (s.streamerCode === targetId || s.streamerSocketId === targetId) {
+        if (s.streamerCode === targetId || s.streamerSocketId === targetId || s.id === targetId || sId === targetId) {
           stream = s;
           targetId = sId;
           break;
@@ -752,6 +752,17 @@ io.on('connection', (socket) => {
 
     if (!stream) {
       return socket.emit('stream:error', { message: 'Transmissão não encontrada ou já encerrada.' });
+    }
+
+    // If viewer was already watching another stream, clean that up
+    for (const [sId, s] of memoryStreams.entries()) {
+      if (sId !== targetId && s.viewers && s.viewers.has(socket.id)) {
+        s.viewers.delete(socket.id);
+        io.to(sId).emit('webrtc:viewer-left', {
+          viewerSocketId: socket.id,
+          viewerNickname: viewer.nickname
+        });
+      }
     }
 
     // Update viewer status
@@ -777,9 +788,10 @@ io.on('connection', (socket) => {
 
   socket.on('stream:watch', handleWatchStream);
   socket.on('stream:join-viewer', handleWatchStream);
+  socket.on('stream:join', handleWatchStream);
 
   // 4. Viewer stops watching a stream
-  const handleUnwatchStream = ({ streamerSocketId }) => {
+  const handleUnwatchStream = (data = {}) => {
     const viewer = onlineUsers.get(socket.id);
     if (viewer) {
       viewer.status = '🟢 Online';
@@ -787,14 +799,15 @@ io.on('connection', (socket) => {
       viewer.watchingStreamerName = null;
     }
 
-    if (streamerSocketId && memoryStreams.has(streamerSocketId)) {
-      const stream = memoryStreams.get(streamerSocketId);
-      stream.viewers.delete(socket.id);
-      
-      io.to(streamerSocketId).emit('webrtc:viewer-left', {
-        viewerSocketId: socket.id,
-        viewerNickname: viewer?.nickname
-      });
+    const streamerSocketId = data.streamerSocketId || data.streamId;
+    for (const [sId, stream] of memoryStreams.entries()) {
+      if (stream.viewers && stream.viewers.has(socket.id)) {
+        stream.viewers.delete(socket.id);
+        io.to(sId).emit('webrtc:viewer-left', {
+          viewerSocketId: socket.id,
+          viewerNickname: viewer?.nickname
+        });
+      }
     }
 
     syncStreamsToDisk();
@@ -803,6 +816,7 @@ io.on('connection', (socket) => {
 
   socket.on('stream:unwatch', handleUnwatchStream);
   socket.on('stream:leave-viewer', handleUnwatchStream);
+  socket.on('stream:leave', handleUnwatchStream);
 
   // 5. WebRTC Relay Signaling: Offer (Streamer -> Viewer)
   socket.on('webrtc:offer', ({ targetSocketId, offer }) => {
