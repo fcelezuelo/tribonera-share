@@ -871,7 +871,7 @@ html, body {
 }
 
 .stream-quality-selector {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .quality-label {
@@ -901,6 +901,101 @@ html, body {
   border-color: var(--accent-blurple);
   background-color: var(--bg-tertiary);
   outline: none;
+}
+
+/* Audio Source Settings in Sidebar */
+.stream-audio-config {
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.audio-config-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.audio-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.audio-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-normal);
+  cursor: pointer;
+  user-select: none;
+}
+
+.audio-toggle-label.sub-label {
+  padding-left: 18px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.audio-icon-span {
+  font-size: 13px;
+}
+
+.audio-switch-input {
+  accent-color: var(--accent-blurple);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Streamer Live Audio Fast Bar */
+.streamer-audio-live-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.btn-audio-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-normal);
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-audio-mini:hover {
+  background-color: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.btn-audio-mini.muted {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.btn-stage-icon.muted-stage-btn {
+  background-color: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
 }
 
 .btn-discord-share {

@@ -222,14 +222,18 @@ window.TriboneraWebRTC = (function () {
   }
 
   let mixerAudioCtx = null;
+  let mixerSysGain = null;
+  let mixerMicGain = null;
+  let rawMicStream = null;
   let prevBytesReceived = 0;
   let prevTimestamp = 0;
-  let isStreamAudioMuted = false;
+  let isSysAudioMuted = false;
+  let isMicAudioMuted = false;
 
   /**
    * 1. Start Screen Sharing (getDisplayMedia)
    */
-  async function startScreenCapture(qualityOption = '1080p60', audioConfig = { systemAudio: true, micAudio: false }) {
+  async function startScreenCapture(qualityOption = '1080p60', audioConfig = { systemAudio: true, micAudio: false, micStartMuted: true }) {
     let width = 1920;
     let height = 1080;
     let frameRate = 60;
@@ -260,6 +264,8 @@ window.TriboneraWebRTC = (function () {
 
     currentStreamFps = frameRate;
     currentStreamResolution = `${height}p`;
+    isSysAudioMuted = false;
+    isMicAudioMuted = audioConfig.micAudio && (audioConfig.micStartMuted !== false);
     isStreamAudioMuted = false;
 
     try {
@@ -355,50 +361,60 @@ window.TriboneraWebRTC = (function () {
 
       audioActuallyCaptured = capturedStream.getAudioTracks().length > 0;
 
-      // Check if user also requested microphone mixing
+      // Handle mixing of system audio and microphone with individual GainNodes
       let finalStream = capturedStream;
-      if (audioConfig && audioConfig.micAudio) {
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            },
-            video: false
-          });
+      const wantsMic = audioConfig && audioConfig.micAudio;
 
-          const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          if (AudioCtx) {
+      if (wantsMic || audioActuallyCaptured) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          try {
             mixerAudioCtx = new AudioCtx();
             const destination = mixerAudioCtx.createMediaStreamDestination();
 
-            // Mix system audio if present
+            // 1. System audio track routing
             if (capturedStream.getAudioTracks().length > 0) {
               const sysSource = mixerAudioCtx.createMediaStreamSource(new MediaStream(capturedStream.getAudioTracks()));
-              const sysGain = mixerAudioCtx.createGain();
-              sysGain.gain.value = 1.0;
-              sysSource.connect(sysGain);
-              sysGain.connect(destination);
+              mixerSysGain = mixerAudioCtx.createGain();
+              mixerSysGain.gain.value = isSysAudioMuted ? 0.0 : 1.0;
+              sysSource.connect(mixerSysGain);
+              mixerSysGain.connect(destination);
             }
 
-            // Mix mic audio
-            if (micStream.getAudioTracks().length > 0) {
-              const micSource = mixerAudioCtx.createMediaStreamSource(micStream);
-              const micGain = mixerAudioCtx.createGain();
-              micGain.gain.value = 1.0;
-              micSource.connect(micGain);
-              micGain.connect(destination);
+            // 2. Microphone audio track routing
+            if (wantsMic) {
+              try {
+                rawMicStream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                  },
+                  video: false
+                });
+
+                const micSource = mixerAudioCtx.createMediaStreamSource(rawMicStream);
+                mixerMicGain = mixerAudioCtx.createGain();
+                // Set initial mic mute state
+                mixerMicGain.gain.value = isMicAudioMuted ? 0.0 : 1.0;
+                micSource.connect(mixerMicGain);
+                mixerMicGain.connect(destination);
+                console.log(`[WebRTC] Microfone mixer configurado (mutado Inicialmente: ${isMicAudioMuted})`);
+              } catch (micErr) {
+                console.warn('Não foi possível capturar microfone simultâneo:', micErr);
+              }
             }
 
             const mixedAudioTracks = destination.stream.getAudioTracks();
-            finalStream = new MediaStream([
-              ...capturedStream.getVideoTracks(),
-              ...mixedAudioTracks
-            ]);
+            if (mixedAudioTracks.length > 0) {
+              finalStream = new MediaStream([
+                ...capturedStream.getVideoTracks(),
+                ...mixedAudioTracks
+              ]);
+            }
+          } catch (mixErr) {
+            console.warn('Falha no AudioContext mixer, usando áudio direto:', mixErr);
           }
-        } catch (micErr) {
-          console.warn('Não foi possível capturar microfone simultâneo (mantendo som do sistema):', micErr);
         }
       }
 
@@ -717,6 +733,15 @@ window.TriboneraWebRTC = (function () {
         mixerAudioCtx.close();
       } catch (e) {}
       mixerAudioCtx = null;
+      mixerSysGain = null;
+      mixerMicGain = null;
+    }
+
+    if (rawMicStream) {
+      try {
+        rawMicStream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      rawMicStream = null;
     }
 
     for (const [, pc] of streamerPeerConnections.entries()) {
@@ -735,7 +760,36 @@ window.TriboneraWebRTC = (function () {
   }
 
   /**
-   * Toggle Broadcaster Audio Mute in Real-Time
+   * Toggle Broadcaster PC / System Audio Mute in Real-Time
+   */
+  function toggleSystemAudioMute() {
+    isSysAudioMuted = !isSysAudioMuted;
+    if (mixerSysGain) {
+      mixerSysGain.gain.value = isSysAudioMuted ? 0.0 : 1.0;
+    } else if (localStream) {
+      // Direct track fallback
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = !isSysAudioMuted;
+      });
+    }
+    console.log(`[WebRTC] Som do PC (Sistema) ${isSysAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
+    return isSysAudioMuted;
+  }
+
+  /**
+   * Toggle Broadcaster Microphone Mute in Real-Time
+   */
+  function toggleMicrophoneMute() {
+    isMicAudioMuted = !isMicAudioMuted;
+    if (mixerMicGain) {
+      mixerMicGain.gain.value = isMicAudioMuted ? 0.0 : 1.0;
+    }
+    console.log(`[WebRTC] Microfone ${isMicAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
+    return isMicAudioMuted;
+  }
+
+  /**
+   * Toggle All Broadcaster Audio (Master Mute)
    */
   function toggleStreamAudioMute() {
     if (!localStream) return false;
@@ -747,7 +801,7 @@ window.TriboneraWebRTC = (function () {
       track.enabled = !isStreamAudioMuted;
     });
 
-    console.log(`[WebRTC] Áudio da transmissão ${isStreamAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
+    console.log(`[WebRTC] Áudio geral da transmissão ${isStreamAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
     return isStreamAudioMuted;
   }
 
@@ -892,9 +946,14 @@ window.TriboneraWebRTC = (function () {
     stopStreaming,
     stopWatching,
     toggleStreamAudioMute,
+    toggleSystemAudioMute,
+    toggleMicrophoneMute,
     captureVideoScreenshot,
     getLocalStream: () => localStream,
     isAudioMuted: () => isStreamAudioMuted,
+    isSysAudioMuted: () => isSysAudioMuted,
+    isMicAudioMuted: () => isMicAudioMuted,
+    hasMicActive: () => !!rawMicStream,
     getCurrentWatchedStreamerSocketId: () => currentWatchedStreamerSocketId
   };
 })();

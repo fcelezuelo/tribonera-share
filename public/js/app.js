@@ -21,6 +21,14 @@ window.TriboneraApp = (function () {
   const selectQuality = document.getElementById('select-stream-quality');
   const checkboxSystemAudio = document.getElementById('checkbox-system-audio');
   const checkboxMicAudio = document.getElementById('checkbox-mic-audio');
+  const checkboxMicStartMuted = document.getElementById('checkbox-mic-start-muted');
+  const micMuteStartupRow = document.getElementById('mic-mute-startup-row');
+  const btnSidebarToggleSysAudio = document.getElementById('btn-sidebar-toggle-sysaudio');
+  const sidebarSysAudioIcon = document.getElementById('sidebar-sysaudio-icon');
+  const sidebarSysAudioText = document.getElementById('sidebar-sysaudio-text');
+  const btnSidebarToggleMic = document.getElementById('btn-sidebar-toggle-mic');
+  const sidebarMicIcon = document.getElementById('sidebar-mic-icon');
+  const sidebarMicText = document.getElementById('sidebar-mic-text');
   const myStreamTimer = document.getElementById('my-stream-timer');
   const myStreamSpecs = document.getElementById('my-stream-specs');
   const countActiveStreams = document.getElementById('count-active-streams');
@@ -41,7 +49,10 @@ window.TriboneraApp = (function () {
   const liveAudioStatusPill = document.getElementById('live-audio-status-pill');
   const liveAudioStatusText = document.getElementById('live-audio-status-text');
   const equalizerAnim = document.getElementById('equalizer-anim');
-  const btnStreamerMuteAudio = document.getElementById('btn-streamer-mute-audio');
+  const btnStreamerSysAudioToggle = document.getElementById('btn-streamer-sysaudio-toggle');
+  const iconSysAudioState = document.getElementById('icon-sysaudio-state');
+  const btnStreamerMicToggle = document.getElementById('btn-streamer-mic-toggle');
+  const iconMicState = document.getElementById('icon-mic-state');
   const btnScreenshotVideo = document.getElementById('btn-screenshot-video');
   const btnStopWatching = document.getElementById('btn-stop-watching');
   const btnStatsToggle = document.getElementById('btn-stats-toggle');
@@ -624,7 +635,8 @@ window.TriboneraApp = (function () {
     const quality = selectQuality ? selectQuality.value : '1080p60';
     const audioOptions = {
       systemAudio: checkboxSystemAudio ? checkboxSystemAudio.checked : true,
-      micAudio: checkboxMicAudio ? checkboxMicAudio.checked : false
+      micAudio: checkboxMicAudio ? checkboxMicAudio.checked : false,
+      micStartMuted: checkboxMicStartMuted ? checkboxMicStartMuted.checked : true
     };
 
     const result = await TriboneraWebRTC.startScreenCapture(quality, audioOptions);
@@ -663,12 +675,11 @@ window.TriboneraApp = (function () {
     currentStreamerTitle.textContent = `Sua Transmissão (${currentUser.nickname})`;
     currentStreamerSpecs.textContent = `${result.resolution} • ${result.fps} FPS • Direct P2P`;
 
-    // Audio status & controls
-    if (btnStreamerMuteAudio) {
-      btnStreamerMuteAudio.classList.remove('hidden');
-      updateStreamerMuteButtonUI(false);
-    }
-    updateLiveAudioStatus(result.hasAudio, false);
+    // Show separate audio buttons in stage header
+    if (btnStreamerSysAudioToggle) btnStreamerSysAudioToggle.classList.remove('hidden');
+    if (btnStreamerMicToggle) btnStreamerMicToggle.classList.remove('hidden');
+
+    updateAudioControlsUI();
 
     if (footerQualityTag) footerQualityTag.textContent = `${result.resolution} ${result.fps} FPS`;
     if (footerAudioTag) footerAudioTag.textContent = result.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Áudio';
@@ -727,7 +738,8 @@ window.TriboneraApp = (function () {
 
     viewIsStreaming.classList.add('hidden');
     viewNotStreaming.classList.remove('hidden');
-    if (btnStreamerMuteAudio) btnStreamerMuteAudio.classList.add('hidden');
+    if (btnStreamerSysAudioToggle) btnStreamerSysAudioToggle.classList.add('hidden');
+    if (btnStreamerMicToggle) btnStreamerMicToggle.classList.add('hidden');
 
     myStatusDot.className = 'status-indicator online';
     footerUserStatus.textContent = '🟢 Online';
@@ -772,49 +784,77 @@ window.TriboneraApp = (function () {
     }
   }
 
-  function updateLiveAudioStatus(hasAudio, isMuted) {
-    if (!liveAudioStatusPill || !liveAudioStatusText) return;
-    
-    if (!hasAudio) {
-      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
-      liveAudioStatusText.textContent = 'Sem Áudio';
-      if (equalizerAnim) equalizerAnim.classList.add('paused');
-    } else if (isMuted) {
-      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
-      liveAudioStatusText.textContent = 'Áudio Mutado';
-      if (equalizerAnim) equalizerAnim.classList.add('paused');
-    } else {
-      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-active';
-      liveAudioStatusText.textContent = 'Som do PC Ativo';
-      if (equalizerAnim) equalizerAnim.classList.remove('paused');
-    }
-  }
+  function updateAudioControlsUI() {
+    const isSysMuted = TriboneraWebRTC.isSysAudioMuted();
+    const isMicMuted = TriboneraWebRTC.isMicAudioMuted();
+    const hasMic = TriboneraWebRTC.hasMicActive();
 
-  function updateStreamerMuteButtonUI(isMuted) {
-    if (!btnStreamerMuteAudio) return;
-    if (isMuted) {
-      btnStreamerMuteAudio.classList.add('muted');
-      btnStreamerMuteAudio.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="1" y1="1" x2="23" y2="23"></line>
-          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
-          <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
-          <line x1="12" y1="19" x2="12" y2="23"></line>
-          <line x1="8" y1="23" x2="16" y2="23"></line>
-        </svg>
-        <span>Desmutar Som</span>
-      `;
-    } else {
-      btnStreamerMuteAudio.classList.remove('muted');
-      btnStreamerMuteAudio.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-          <line x1="12" y1="19" x2="12" y2="23"></line>
-          <line x1="8" y1="23" x2="16" y2="23"></line>
-        </svg>
-        <span>Mutar Som</span>
-      `;
+    // 1. Sidebar Fast Controls
+    if (sidebarSysAudioIcon && sidebarSysAudioText && btnSidebarToggleSysAudio) {
+      if (isSysMuted) {
+        sidebarSysAudioIcon.textContent = '🔇';
+        sidebarSysAudioText.textContent = 'PC (Mutado)';
+        btnSidebarToggleSysAudio.classList.add('muted');
+      } else {
+        sidebarSysAudioIcon.textContent = '🔊';
+        sidebarSysAudioText.textContent = 'Som PC';
+        btnSidebarToggleSysAudio.classList.remove('muted');
+      }
+    }
+
+    if (sidebarMicIcon && sidebarMicText && btnSidebarToggleMic) {
+      if (!hasMic) {
+        sidebarMicIcon.textContent = '🎙️';
+        sidebarMicText.textContent = 'Mic (Desativado)';
+        btnSidebarToggleMic.classList.add('muted');
+      } else if (isMicMuted) {
+        sidebarMicIcon.textContent = '🔇';
+        sidebarMicText.textContent = 'Mic (Mutado)';
+        btnSidebarToggleMic.classList.add('muted');
+      } else {
+        sidebarMicIcon.textContent = '🎙️';
+        sidebarMicText.textContent = 'Mic (Voz)';
+        btnSidebarToggleMic.classList.remove('muted');
+      }
+    }
+
+    // 2. Stage Header Fast Buttons
+    if (btnStreamerSysAudioToggle && iconSysAudioState) {
+      iconSysAudioState.textContent = isSysMuted ? '🔇' : '🔊';
+      if (isSysMuted) {
+        btnStreamerSysAudioToggle.classList.add('muted-stage-btn');
+        btnStreamerSysAudioToggle.title = 'Desmutar Som do PC';
+      } else {
+        btnStreamerSysAudioToggle.classList.remove('muted-stage-btn');
+        btnStreamerSysAudioToggle.title = 'Mutar Som do PC';
+      }
+    }
+
+    if (btnStreamerMicToggle && iconMicState) {
+      iconMicState.textContent = (isMicMuted || !hasMic) ? '🔇' : '🎙️';
+      if (isMicMuted || !hasMic) {
+        btnStreamerMicToggle.classList.add('muted-stage-btn');
+        btnStreamerMicToggle.title = hasMic ? 'Desmutar Microfone' : 'Microfone não incluído na captura';
+      } else {
+        btnStreamerMicToggle.classList.remove('muted-stage-btn');
+        btnStreamerMicToggle.title = 'Mutar Microfone';
+      }
+    }
+
+    // 3. Stage Live Audio Status Pill
+    if (liveAudioStatusPill && liveAudioStatusText) {
+      if (isSysMuted && (isMicMuted || !hasMic)) {
+        liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
+        liveAudioStatusText.textContent = '🔇 Áudio Geral Mutado';
+        if (equalizerAnim) equalizerAnim.classList.add('paused');
+      } else {
+        liveAudioStatusPill.className = 'live-status-pill audio-pill audio-active';
+        let parts = [];
+        if (!isSysMuted) parts.push('🔊 PC');
+        if (hasMic && !isMicMuted) parts.push('🎙️ Mic');
+        liveAudioStatusText.textContent = parts.join(' + ') + ' Ativo';
+        if (equalizerAnim) equalizerAnim.classList.remove('paused');
+      }
     }
   }
 
@@ -971,15 +1011,42 @@ window.TriboneraApp = (function () {
 
   // --- Video Controls ---
   function setupVideoControls() {
-    // Broadcaster Dynamic Audio Mute Toggle
-    if (btnStreamerMuteAudio) {
-      btnStreamerMuteAudio.addEventListener('click', () => {
-        if (!isCurrentlyStreaming) return;
-        const isMuted = TriboneraWebRTC.toggleStreamAudioMute();
-        updateStreamerMuteButtonUI(isMuted);
-        updateLiveAudioStatus(true, isMuted);
-        showToast(isMuted ? '🔇 Áudio da sua transmissão pausado' : '🔊 Áudio da sua transmissão ativado', 'info');
-      });
+    // Broadcaster PC / System Audio Toggle Handler
+    const handleToggleSysAudio = () => {
+      if (!isCurrentlyStreaming) return;
+      const isMuted = TriboneraWebRTC.toggleSystemAudioMute();
+      updateAudioControlsUI();
+      showToast(isMuted ? '🔇 Som do PC mutado na transmissão' : '🔊 Som do PC ativado na transmissão', 'info');
+    };
+
+    // Broadcaster Microphone Toggle Handler
+    const handleToggleMic = () => {
+      if (!isCurrentlyStreaming) return;
+      if (!TriboneraWebRTC.hasMicActive()) {
+        showToast('Microfone não foi selecionado antes de iniciar a transmissão.', 'warning');
+        return;
+      }
+      const isMuted = TriboneraWebRTC.toggleMicrophoneMute();
+      updateAudioControlsUI();
+      showToast(isMuted ? '🔇 Microfone mutado' : '🎙️ Microfone ativado na transmissão', 'info');
+    };
+
+    if (btnStreamerSysAudioToggle) btnStreamerSysAudioToggle.addEventListener('click', handleToggleSysAudio);
+    if (btnSidebarToggleSysAudio) btnSidebarToggleSysAudio.addEventListener('click', handleToggleSysAudio);
+    if (btnStreamerMicToggle) btnStreamerMicToggle.addEventListener('click', handleToggleMic);
+    if (btnSidebarToggleMic) btnSidebarToggleMic.addEventListener('click', handleToggleMic);
+
+    // Dynamic visibility for "Iniciar microfone mutado" checkbox
+    if (checkboxMicAudio && micMuteStartupRow) {
+      const syncMicRow = () => {
+        if (checkboxMicAudio.checked) {
+          micMuteStartupRow.classList.remove('hidden');
+        } else {
+          micMuteStartupRow.classList.add('hidden');
+        }
+      };
+      checkboxMicAudio.addEventListener('change', syncMicRow);
+      syncMicRow();
     }
 
     // High Definition Screenshot Capture
