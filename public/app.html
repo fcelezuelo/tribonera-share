@@ -172,7 +172,7 @@
       <!-- Active Stream Stage -->
       <div class="video-stage-wrapper" id="video-stage-wrapper">
         
-        <!-- Video Player Header Overlay -->
+        <!-- Video Player Header Overlay (Green Mark Area) -->
         <div class="video-header-bar hidden" id="video-header-bar">
           <div class="streamer-info">
             <div class="streamer-avatar" id="current-streamer-avatar">J</div>
@@ -180,12 +180,38 @@
               <div class="streamer-name-row">
                 <span class="streamer-title" id="current-streamer-title">Tela de João</span>
                 <span class="badge-live-tag">AO VIVO</span>
+                <!-- Real-time Live Duration Counter -->
+                <div class="live-timer-badge" id="current-stream-uptime-badge" title="Tempo de transmissão contínuo">
+                  <span class="uptime-dot"></span>
+                  <span id="current-stream-uptime">00:00:00</span>
+                </div>
               </div>
-              <span class="streamer-specs-tag" id="current-streamer-specs">1080p • 60 FPS • WebRTC Direct</span>
+              <div class="streamer-specs-row">
+                <span class="streamer-specs-tag" id="current-streamer-specs">1080p • 60 FPS</span>
+                <!-- Real-time Audio Status Indicator & Equalizer -->
+                <div class="live-audio-status-pill audio-on" id="live-audio-status-pill" title="Status de transmissão de áudio">
+                  <div class="equalizer-anim" id="equalizer-anim">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <span id="live-audio-status-text">🔊 Som do Sistema Ativo</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="stage-top-actions">
+            <!-- Broadcaster Quick Mute/Unmute audio button -->
+            <button id="btn-streamer-mute-audio" class="btn-stage-icon streamer-audio-toggle hidden" title="Mutar / Desmutar Transmissão de Áudio">
+              <svg id="icon-streamer-audio-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+              <svg id="icon-streamer-audio-off" class="hidden text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </button>
             <button id="btn-stats-toggle" class="btn-stage-icon" title="Estatísticas de Conexão WebRTC">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 20V10M12 20V4M6 20v-6"></path>
@@ -232,15 +258,16 @@
             <div class="stats-grid">
               <div class="stat-item"><span class="stat-lbl">Resolução:</span> <strong id="stat-resolution">1920x1080</strong></div>
               <div class="stat-item"><span class="stat-lbl">Taxa de Quadros:</span> <strong id="stat-fps">60 FPS</strong></div>
+              <div class="stat-item"><span class="stat-lbl">Bitrate Médio:</span> <strong id="stat-bitrate">-- Mbps</strong></div>
               <div class="stat-item"><span class="stat-lbl">Latência / RTT:</span> <strong id="stat-rtt">&lt; 15 ms</strong></div>
-              <div class="stat-item"><span class="stat-lbl">Protocolo:</span> <strong>WebRTC Direct P2P</strong></div>
+              <div class="stat-item"><span class="stat-lbl">Codec / Modo:</span> <strong id="stat-codec">VP9 / H.264 HD</strong></div>
             </div>
           </div>
 
           <!-- Video Custom Controls Floating Bar (Hover) -->
           <div class="video-controls-overlay hidden" id="video-controls-overlay">
             <div class="controls-left">
-              <button id="btn-toggle-audio" class="control-btn" title="Mutar / Desmutar Áudio">
+              <button id="btn-toggle-audio" class="control-btn" title="Mutar / Desmutar Áudio do Player">
                 <svg id="icon-volume-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                   <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -255,6 +282,12 @@
             </div>
 
             <div class="controls-right">
+              <button id="btn-screenshot-video" class="control-btn" title="📸 Tirar Screenshot da Live">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+              </button>
               <button id="btn-pip" class="control-btn" title="Picture-in-Picture (Janela Flutuante)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -296,24 +329,70 @@
           </div>
         </div>
 
-        <!-- Sleek Sub-Stage Info Grid (Viewers & WebRTC Stability) -->
+        <!-- Modern Stream Hub & Live Dock (Purple Mark Redesign) -->
         <div class="stage-info-grid hidden" id="viewers-bar">
+          <!-- Card 1: Active Viewers List -->
           <div class="stage-subcard viewers-subcard">
-            <h3 class="subcard-title">ASSISTINDO AGORA (<span id="viewers-count-num">0</span>)</h3>
+            <div class="subcard-header-row">
+              <div class="subcard-title-group">
+                <span class="pulse-dot-green"></span>
+                <h3 class="subcard-title">ASSISTINDO AGORA (<span id="viewers-count-num">0</span>)</h3>
+              </div>
+              <span class="subcard-badge-tag" id="viewers-role-hint">Audiência ao Vivo</span>
+            </div>
             <div class="viewers-chips-container" id="viewers-chips-container">
-              <span class="empty-viewers-text">Nenhum espectador</span>
+              <span class="empty-viewers-text">Nenhum espectador no momento</span>
             </div>
           </div>
-          <div class="stage-subcard connection-subcard">
-            <div class="connection-meta">
-              <h3 class="subcard-title">CONEXÃO WEBRTC</h3>
-              <p class="connection-status-text">
-                <span class="subcard-dot-green"></span>
-                <span>P2P Direto Ativo • Alta Estabilidade (1080p @ 60 FPS)</span>
-              </p>
+
+          <!-- Card 2: Performance Hub & Action Deck -->
+          <div class="stage-subcard stream-dock-subcard">
+            <div class="dock-metrics-grid">
+              <div class="dock-metric-item">
+                <span class="dock-metric-label">TAXA DE QUADROS</span>
+                <span class="dock-metric-value highlight" id="dock-fps-val">60.0 FPS</span>
+              </div>
+              <div class="dock-metric-item">
+                <span class="dock-metric-label">BITRATE DA TRANSMISSÃO</span>
+                <span class="dock-metric-value" id="dock-bitrate-val">6.2 Mbps</span>
+              </div>
+              <div class="dock-metric-item">
+                <span class="dock-metric-label">LATÊNCIA DIRETA</span>
+                <span class="dock-metric-value text-success" id="dock-latency-val">&lt; 15 ms</span>
+              </div>
+              <div class="dock-metric-item">
+                <span class="dock-metric-label">QUALIDADE DO LINK</span>
+                <span class="dock-metric-value text-blue" id="dock-stability-val">100% Excelente</span>
+              </div>
             </div>
-            <div class="connection-actions">
-              <span class="webrtc-badge">P2P ENCRYPTED</span>
+
+            <div class="dock-action-buttons">
+              <button id="btn-dock-screenshot" class="btn-dock-action" title="Tirar uma foto em alta definição da tela transmitida">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+                <span>Screenshot</span>
+              </button>
+              <button id="btn-dock-pip" class="btn-dock-action" title="Abrir em mini janela flutuante">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
+                </svg>
+                <span>PiP</span>
+              </button>
+              <button id="btn-dock-fullscreen" class="btn-dock-action" title="Expandir para tela cheia">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+                <span>Tela Cheia</span>
+              </button>
+              <button id="btn-dock-stats" class="btn-dock-action" title="Abrir diagnóstico detalhado WebRTC">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 20V10M12 20V4M6 20v-6"></path>
+                </svg>
+                <span>Diagnóstico</span>
+              </button>
             </div>
           </div>
         </div>

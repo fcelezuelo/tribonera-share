@@ -19,7 +19,8 @@ window.TriboneraApp = (function () {
   const btnEmptyStartShare = document.getElementById('btn-empty-start-share');
   const btnStopShare = document.getElementById('btn-stop-share');
   const selectQuality = document.getElementById('select-stream-quality');
-  const checkboxStreamAudio = document.getElementById('checkbox-stream-audio');
+  const checkboxSystemAudio = document.getElementById('checkbox-system-audio');
+  const checkboxMicAudio = document.getElementById('checkbox-mic-audio');
   const myStreamTimer = document.getElementById('my-stream-timer');
   const myStreamSpecs = document.getElementById('my-stream-specs');
   const countActiveStreams = document.getElementById('count-active-streams');
@@ -36,6 +37,12 @@ window.TriboneraApp = (function () {
   const currentStreamerAvatar = document.getElementById('current-streamer-avatar');
   const currentStreamerTitle = document.getElementById('current-streamer-title');
   const currentStreamerSpecs = document.getElementById('current-streamer-specs');
+  const currentStreamUptime = document.getElementById('current-stream-uptime');
+  const liveAudioStatusPill = document.getElementById('live-audio-status-pill');
+  const liveAudioStatusText = document.getElementById('live-audio-status-text');
+  const equalizerAnim = document.getElementById('equalizer-anim');
+  const btnStreamerMuteAudio = document.getElementById('btn-streamer-mute-audio');
+  const btnScreenshotVideo = document.getElementById('btn-screenshot-video');
   const btnStopWatching = document.getElementById('btn-stop-watching');
   const btnStatsToggle = document.getElementById('btn-stats-toggle');
   const btnCloseStats = document.getElementById('btn-close-stats');
@@ -52,6 +59,16 @@ window.TriboneraApp = (function () {
   const glassViewersAvatars = document.getElementById('glass-viewers-avatars');
   const glassViewersCount = document.getElementById('glass-viewers-count');
   const glassLatencyBadge = document.getElementById('glass-latency-badge');
+
+  // Stream Dock Elements
+  const btnDockScreenshot = document.getElementById('btn-dock-screenshot');
+  const btnDockPip = document.getElementById('btn-dock-pip');
+  const btnDockFullscreen = document.getElementById('btn-dock-fullscreen');
+  const btnDockStats = document.getElementById('btn-dock-stats');
+  const dockFpsVal = document.getElementById('dock-fps-val');
+  const dockBitrateVal = document.getElementById('dock-bitrate-val');
+  const dockLatencyVal = document.getElementById('dock-latency-val');
+  const dockStabilityVal = document.getElementById('dock-stability-val');
 
   // Video Controls
   const btnToggleAudio = document.getElementById('btn-toggle-audio');
@@ -597,7 +614,12 @@ window.TriboneraApp = (function () {
     }
 
     const quality = selectQuality ? selectQuality.value : '1080p60';
-    const result = await TriboneraWebRTC.startScreenCapture(quality);
+    const audioOptions = {
+      systemAudio: checkboxSystemAudio ? checkboxSystemAudio.checked : true,
+      micAudio: checkboxMicAudio ? checkboxMicAudio.checked : false
+    };
+
+    const result = await TriboneraWebRTC.startScreenCapture(quality, audioOptions);
 
     if (!result.success) {
       if (result.isPermissionsPolicyError) {
@@ -621,7 +643,24 @@ window.TriboneraApp = (function () {
     localPreviewVideo.play().catch(err => console.warn('Erro ao reproduzir preview local:', err));
     remoteVideo.classList.add('hidden');
     emptyStageState.classList.add('hidden');
-    videoControlsOverlay.classList.add('hidden');
+    videoHeaderBar.classList.remove('hidden');
+    viewersBar.classList.remove('hidden');
+    videoControlsOverlay.classList.remove('hidden');
+    if (glassViewersBadge) glassViewersBadge.classList.remove('hidden');
+    if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
+
+    // Update Stage Top Bar for Broadcaster
+    currentStreamerAvatar.textContent = currentUser.nickname.charAt(0).toUpperCase();
+    currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(currentUser.nickname)}`;
+    currentStreamerTitle.textContent = `Sua Transmissão (${currentUser.nickname})`;
+    currentStreamerSpecs.textContent = `${result.resolution} • ${result.fps} FPS • Direct P2P`;
+
+    // Audio status & controls
+    if (btnStreamerMuteAudio) {
+      btnStreamerMuteAudio.classList.remove('hidden');
+      updateStreamerMuteButtonUI(false);
+    }
+    updateLiveAudioStatus(result.hasAudio, false);
 
     // Update left sidebar controls
     viewNotStreaming.classList.add('hidden');
@@ -632,6 +671,15 @@ window.TriboneraApp = (function () {
     streamStartTime = Date.now();
     updateStreamTimer();
     streamTimerInterval = setInterval(updateStreamTimer, 1000);
+
+    // Initial dock values
+    if (dockFpsVal) dockFpsVal.textContent = `${result.fps}.0 FPS`;
+    if (dockBitrateVal) dockBitrateVal.textContent = 'Calculando...';
+    if (dockLatencyVal) dockLatencyVal.textContent = '< 15 ms';
+    if (dockStabilityVal) {
+      dockStabilityVal.textContent = '100% Excelente';
+      dockStabilityVal.className = 'dock-metric-value text-blue';
+    }
 
     // Notify server via Socket.IO
     socket.emit('stream:start', {
@@ -670,17 +718,25 @@ window.TriboneraApp = (function () {
       clearInterval(streamTimerInterval);
       streamTimerInterval = null;
     }
+    streamStartTime = null;
 
     localPreviewVideo.srcObject = null;
     localPreviewVideo.classList.add('hidden');
 
     viewIsStreaming.classList.add('hidden');
     viewNotStreaming.classList.remove('hidden');
+    if (btnStreamerMuteAudio) btnStreamerMuteAudio.classList.add('hidden');
 
     myStatusDot.className = 'status-indicator online';
     footerUserStatus.textContent = '🟢 Online';
 
     if (!currentWatchedStream) {
+      videoHeaderBar.classList.add('hidden');
+      viewersBar.classList.add('hidden');
+      videoControlsOverlay.classList.add('hidden');
+      statsHud.classList.add('hidden');
+      if (glassViewersBadge) glassViewersBadge.classList.add('hidden');
+      if (glassLatencyBadge) glassLatencyBadge.classList.add('hidden');
       emptyStageState.classList.remove('hidden');
     }
 
@@ -696,11 +752,68 @@ window.TriboneraApp = (function () {
   }
 
   function updateStreamTimer() {
-    if (!streamStartTime) return;
+    if (!streamStartTime) {
+      if (currentStreamUptime) currentStreamUptime.textContent = '00:00:00';
+      if (myStreamTimer) myStreamTimer.textContent = '00:00';
+      return;
+    }
     const diff = Math.floor((Date.now() - streamStartTime) / 1000);
-    const m = String(Math.floor(diff / 60)).padStart(2, '0');
+    const h = String(Math.floor(diff / 3600)).padStart(2, '0');
+    const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
     const s = String(diff % 60).padStart(2, '0');
-    myStreamTimer.textContent = `${m}:${s}`;
+    
+    if (currentStreamUptime) {
+      currentStreamUptime.textContent = `${h}:${m}:${s}`;
+    }
+    if (myStreamTimer) {
+      myStreamTimer.textContent = `${m}:${s}`;
+    }
+  }
+
+  function updateLiveAudioStatus(hasAudio, isMuted) {
+    if (!liveAudioStatusPill || !liveAudioStatusText) return;
+    
+    if (!hasAudio) {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
+      liveAudioStatusText.textContent = 'Sem Áudio';
+      if (equalizerAnim) equalizerAnim.classList.add('paused');
+    } else if (isMuted) {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-muted';
+      liveAudioStatusText.textContent = 'Áudio Mutado';
+      if (equalizerAnim) equalizerAnim.classList.add('paused');
+    } else {
+      liveAudioStatusPill.className = 'live-status-pill audio-pill audio-active';
+      liveAudioStatusText.textContent = 'Som do PC Ativo';
+      if (equalizerAnim) equalizerAnim.classList.remove('paused');
+    }
+  }
+
+  function updateStreamerMuteButtonUI(isMuted) {
+    if (!btnStreamerMuteAudio) return;
+    if (isMuted) {
+      btnStreamerMuteAudio.classList.add('muted');
+      btnStreamerMuteAudio.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+          <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        <span>Desmutar Som</span>
+      `;
+    } else {
+      btnStreamerMuteAudio.classList.remove('muted');
+      btnStreamerMuteAudio.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        <span>Mutar Som</span>
+      `;
+    }
   }
 
   // --- Watching Streams (Viewer) ---
@@ -735,13 +848,23 @@ window.TriboneraApp = (function () {
     videoHeaderBar.classList.remove('hidden');
     viewersBar.classList.remove('hidden');
     videoControlsOverlay.classList.remove('hidden');
+    if (btnStreamerMuteAudio) btnStreamerMuteAudio.classList.add('hidden');
     if (glassViewersBadge) glassViewersBadge.classList.remove('hidden');
     if (glassLatencyBadge) glassLatencyBadge.classList.remove('hidden');
 
     currentStreamerAvatar.textContent = stream.streamerName.charAt(0).toUpperCase();
     currentStreamerAvatar.className = `streamer-avatar ${getAvatarColorClass(stream.streamerName)}`;
     currentStreamerTitle.textContent = `Tela de ${stream.streamerName}`;
-    currentStreamerSpecs.textContent = `${stream.resolution} • ${stream.fps} FPS • ${stream.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Som'} • WebRTC Direct`;
+    currentStreamerSpecs.textContent = `${stream.resolution} • ${stream.fps} FPS • WebRTC Direct`;
+
+    // Start Live Timer synchronized with streamer startedAt
+    if (streamTimerInterval) clearInterval(streamTimerInterval);
+    streamStartTime = stream.startedAt || Date.now();
+    updateStreamTimer();
+    streamTimerInterval = setInterval(updateStreamTimer, 1000);
+
+    // Audio status indicator
+    updateLiveAudioStatus(stream.hasAudio, false);
 
     // Ensure audio volume is at 100% and unmuted for remote playback
     remoteVideo.muted = false;
@@ -749,6 +872,15 @@ window.TriboneraApp = (function () {
     if (volumeSlider) volumeSlider.value = 1;
     if (iconVolumeHigh) iconVolumeHigh.classList.remove('hidden');
     if (iconVolumeMuted) iconVolumeMuted.classList.add('hidden');
+
+    // Dock initial values
+    if (dockFpsVal) dockFpsVal.textContent = `${stream.fps || 60}.0 FPS`;
+    if (dockBitrateVal) dockBitrateVal.textContent = 'Calculando...';
+    if (dockLatencyVal) dockLatencyVal.textContent = '< 20 ms';
+    if (dockStabilityVal) {
+      dockStabilityVal.textContent = '100% Excelente';
+      dockStabilityVal.className = 'dock-metric-value text-blue';
+    }
 
     updateViewersList(stream.viewers || []);
 
@@ -768,6 +900,12 @@ window.TriboneraApp = (function () {
     currentWatchedStream = null;
 
     TriboneraWebRTC.stopWatching();
+
+    if (streamTimerInterval) {
+      clearInterval(streamTimerInterval);
+      streamTimerInterval = null;
+    }
+    streamStartTime = null;
 
     if (socket) {
       socket.emit('stream:leave-viewer', {
@@ -837,66 +975,122 @@ window.TriboneraApp = (function () {
 
   // --- Video Controls ---
   function setupVideoControls() {
-    // Audio Mute Toggle
-    btnToggleAudio.addEventListener('click', () => {
-      if (remoteVideo.muted) {
-        remoteVideo.muted = false;
-        iconVolumeHigh.classList.remove('hidden');
-        iconVolumeMuted.classList.add('hidden');
-        volumeSlider.value = remoteVideo.volume || 1;
-      } else {
-        remoteVideo.muted = true;
-        iconVolumeHigh.classList.add('hidden');
-        iconVolumeMuted.classList.remove('hidden');
-        volumeSlider.value = 0;
+    // Broadcaster Dynamic Audio Mute Toggle
+    if (btnStreamerMuteAudio) {
+      btnStreamerMuteAudio.addEventListener('click', () => {
+        if (!isCurrentlyStreaming) return;
+        const isMuted = TriboneraWebRTC.toggleStreamAudioMute();
+        updateStreamerMuteButtonUI(isMuted);
+        updateLiveAudioStatus(true, isMuted);
+        showToast(isMuted ? '🔇 Áudio da sua transmissão pausado' : '🔊 Áudio da sua transmissão ativado', 'info');
+      });
+    }
+
+    // High Definition Screenshot Capture
+    function handleScreenshot() {
+      try {
+        const activeVideo = isCurrentlyStreaming ? localPreviewVideo : remoteVideo;
+        if (!activeVideo || activeVideo.classList.contains('hidden') || !activeVideo.videoWidth) {
+          showToast('Nenhum vídeo ativo para capturar print.', 'error');
+          return;
+        }
+        const filename = TriboneraWebRTC.captureVideoScreenshot(activeVideo);
+        showToast(`📸 Captura salva com sucesso: ${filename}`, 'success');
+        if (window.TriboneraSound) {
+          TriboneraSound.play('mention');
+        }
+      } catch (err) {
+        showToast(err.message || 'Erro ao capturar screenshot.', 'error');
       }
-    });
+    }
+
+    if (btnScreenshotVideo) {
+      btnScreenshotVideo.addEventListener('click', handleScreenshot);
+    }
+    if (btnDockScreenshot) {
+      btnDockScreenshot.addEventListener('click', handleScreenshot);
+    }
+
+    // Audio Mute Toggle for Viewers
+    if (btnToggleAudio) {
+      btnToggleAudio.addEventListener('click', () => {
+        if (remoteVideo.muted) {
+          remoteVideo.muted = false;
+          iconVolumeHigh.classList.remove('hidden');
+          iconVolumeMuted.classList.add('hidden');
+          volumeSlider.value = remoteVideo.volume || 1;
+        } else {
+          remoteVideo.muted = true;
+          iconVolumeHigh.classList.add('hidden');
+          iconVolumeMuted.classList.remove('hidden');
+          volumeSlider.value = 0;
+        }
+      });
+    }
 
     // Volume Slider
-    volumeSlider.addEventListener('input', (e) => {
-      const val = parseFloat(e.target.value);
-      remoteVideo.volume = val;
-      if (val === 0) {
-        remoteVideo.muted = true;
-        iconVolumeHigh.classList.add('hidden');
-        iconVolumeMuted.classList.remove('hidden');
-      } else {
-        remoteVideo.muted = false;
-        iconVolumeHigh.classList.remove('hidden');
-        iconVolumeMuted.classList.add('hidden');
-      }
-    });
+    if (volumeSlider) {
+      volumeSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        remoteVideo.volume = val;
+        if (val === 0) {
+          remoteVideo.muted = true;
+          iconVolumeHigh.classList.add('hidden');
+          iconVolumeMuted.classList.remove('hidden');
+        } else {
+          remoteVideo.muted = false;
+          iconVolumeHigh.classList.remove('hidden');
+          iconVolumeMuted.classList.add('hidden');
+        }
+      });
+    }
 
     // Picture-in-Picture
-    btnPip.addEventListener('click', async () => {
+    const handlePipToggle = async () => {
       try {
+        const activeVideo = isCurrentlyStreaming ? localPreviewVideo : remoteVideo;
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
-        } else if (remoteVideo.srcObject) {
-          await remoteVideo.requestPictureInPicture();
+        } else if (activeVideo && activeVideo.srcObject) {
+          await activeVideo.requestPictureInPicture();
         }
       } catch (err) {
         console.warn('PiP não suportado ou negado:', err);
       }
-    });
+    };
+
+    if (btnPip) btnPip.addEventListener('click', handlePipToggle);
+    if (btnDockPip) btnDockPip.addEventListener('click', handlePipToggle);
 
     // Fullscreen Toggle
-    btnFullscreen.addEventListener('click', () => {
+    const handleFullscreenToggle = () => {
       const viewport = document.getElementById('video-viewport');
       if (!document.fullscreenElement) {
         viewport.requestFullscreen().catch(e => console.warn(e));
       } else {
         document.exitFullscreen().catch(e => console.warn(e));
       }
-    });
+    };
+
+    if (btnFullscreen) btnFullscreen.addEventListener('click', handleFullscreenToggle);
+    if (btnDockFullscreen) btnDockFullscreen.addEventListener('click', handleFullscreenToggle);
 
     // Stats HUD Toggle
-    btnStatsToggle.addEventListener('click', () => {
-      statsHud.classList.toggle('hidden');
-    });
-    btnCloseStats.addEventListener('click', () => {
-      statsHud.classList.add('hidden');
-    });
+    if (btnStatsToggle) {
+      btnStatsToggle.addEventListener('click', () => {
+        statsHud.classList.toggle('hidden');
+      });
+    }
+    if (btnDockStats) {
+      btnDockStats.addEventListener('click', () => {
+        statsHud.classList.toggle('hidden');
+      });
+    }
+    if (btnCloseStats) {
+      btnCloseStats.addEventListener('click', () => {
+        statsHud.classList.add('hidden');
+      });
+    }
   }
 
   // --- Sound Effects Toggle & Preferences ---

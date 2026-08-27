@@ -221,10 +221,15 @@ window.TriboneraWebRTC = (function () {
     return stream;
   }
 
+  let mixerAudioCtx = null;
+  let prevBytesReceived = 0;
+  let prevTimestamp = 0;
+  let isStreamAudioMuted = false;
+
   /**
    * 1. Start Screen Sharing (getDisplayMedia)
    */
-  async function startScreenCapture(qualityOption = '1080p60') {
+  async function startScreenCapture(qualityOption = '1080p60', audioConfig = { systemAudio: true, micAudio: false }) {
     let width = 1920;
     let height = 1080;
     let frameRate = 60;
@@ -255,6 +260,7 @@ window.TriboneraWebRTC = (function () {
 
     currentStreamFps = frameRate;
     currentStreamResolution = `${height}p`;
+    isStreamAudioMuted = false;
 
     try {
       if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
@@ -262,6 +268,7 @@ window.TriboneraWebRTC = (function () {
       }
 
       let capturedStream = null;
+      const requestSystemAudio = audioConfig && audioConfig.systemAudio !== false;
 
       // Primary attempt: Request screen capture with full 60 FPS (or selected FPS) and system audio
       const displayMediaOptions = {
@@ -271,13 +278,15 @@ window.TriboneraWebRTC = (function () {
           height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
           frameRate: { ideal: frameRate, max: frameRate }
         },
-        audio: {
+        audio: requestSystemAudio ? {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
+          channelCount: 2,
+          sampleRate: 48000,
           suppressLocalAudioPlayback: false
-        },
-        systemAudio: 'include',
+        } : false,
+        systemAudio: requestSystemAudio ? 'include' : 'exclude',
         selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include'
       };
@@ -289,7 +298,7 @@ window.TriboneraWebRTC = (function () {
           // User clicked cancel in browser popup
           throw optErr;
         }
-        console.warn('Tentativa com áudio automático falhou (ex: janela individual no Chrome), tentando vídeo direto em ' + frameRate + ' FPS:', optErr);
+        console.warn('Tentativa com áudio estéreo padrão falhou, tentando fallback com áudio habilitado:', optErr);
         // Graceful fallback for windows that don't support audio capture in Chrome
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -298,7 +307,7 @@ window.TriboneraWebRTC = (function () {
             height: { ideal: height },
             frameRate: { ideal: frameRate, max: frameRate }
           },
-          audio: false
+          audio: requestSystemAudio ? true : false
         });
       }
 
@@ -306,7 +315,54 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Não foi possível obter o stream de tela.');
       }
 
-      localStream = capturedStream;
+      // Check if user also requested microphone mixing
+      let finalStream = capturedStream;
+      if (audioConfig && audioConfig.micAudio) {
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
+
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            mixerAudioCtx = new AudioCtx();
+            const destination = mixerAudioCtx.createMediaStreamDestination();
+
+            // Mix system audio if present
+            if (capturedStream.getAudioTracks().length > 0) {
+              const sysSource = mixerAudioCtx.createMediaStreamSource(new MediaStream(capturedStream.getAudioTracks()));
+              const sysGain = mixerAudioCtx.createGain();
+              sysGain.gain.value = 1.0;
+              sysSource.connect(sysGain);
+              sysGain.connect(destination);
+            }
+
+            // Mix mic audio
+            if (micStream.getAudioTracks().length > 0) {
+              const micSource = mixerAudioCtx.createMediaStreamSource(micStream);
+              const micGain = mixerAudioCtx.createGain();
+              micGain.gain.value = 1.0;
+              micSource.connect(micGain);
+              micGain.connect(destination);
+            }
+
+            const mixedAudioTracks = destination.stream.getAudioTracks();
+            finalStream = new MediaStream([
+              ...capturedStream.getVideoTracks(),
+              ...mixedAudioTracks
+            ]);
+          }
+        } catch (micErr) {
+          console.warn('Não foi possível capturar microfone simultâneo (mantendo som do sistema):', micErr);
+        }
+      }
+
+      localStream = finalStream;
 
       // Ensure all tracks are enabled
       localStream.getTracks().forEach(track => {
@@ -616,6 +672,13 @@ window.TriboneraWebRTC = (function () {
       demoAudioCtx = null;
     }
 
+    if (mixerAudioCtx) {
+      try {
+        mixerAudioCtx.close();
+      } catch (e) {}
+      mixerAudioCtx = null;
+    }
+
     for (const [, pc] of streamerPeerConnections.entries()) {
       try {
         pc.close();
@@ -632,6 +695,52 @@ window.TriboneraWebRTC = (function () {
   }
 
   /**
+   * Toggle Broadcaster Audio Mute in Real-Time
+   */
+  function toggleStreamAudioMute() {
+    if (!localStream) return false;
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) return false;
+
+    isStreamAudioMuted = !isStreamAudioMuted;
+    audioTracks.forEach(track => {
+      track.enabled = !isStreamAudioMuted;
+    });
+
+    console.log(`[WebRTC] Áudio da transmissão ${isStreamAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
+    return isStreamAudioMuted;
+  }
+
+  /**
+   * Capture high-definition screenshot from video element
+   */
+  function captureVideoScreenshot(videoElement) {
+    if (!videoElement || !videoElement.videoWidth || !videoElement.videoHeight) {
+      throw new Error('O vídeo ainda não está carregado para captura de tela.');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth;
+    canvas.height = videoElement.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+    const filename = `concord-screenshot-${timestamp}.png`;
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    return filename;
+  }
+
+  /**
    * 8. Stop Watching (cleanup viewer peer connection)
    */
   function stopWatching() {
@@ -644,6 +753,8 @@ window.TriboneraWebRTC = (function () {
       viewerPeerConnection = null;
     }
     currentWatchedStreamerSocketId = null;
+    prevBytesReceived = 0;
+    prevTimestamp = 0;
 
     const remoteVideo = document.getElementById('remote-video');
     if (remoteVideo) {
@@ -659,6 +770,15 @@ window.TriboneraWebRTC = (function () {
     const statRes = document.getElementById('stat-resolution');
     const statFps = document.getElementById('stat-fps');
     const statRtt = document.getElementById('stat-rtt');
+    const statBitrate = document.getElementById('stat-bitrate');
+    const dockFps = document.getElementById('dock-fps-val');
+    const dockBitrate = document.getElementById('dock-bitrate-val');
+    const dockLatency = document.getElementById('dock-latency-val');
+    const dockStability = document.getElementById('dock-stability-val');
+    const glassLatencyText = document.getElementById('glass-latency-text');
+
+    prevBytesReceived = 0;
+    prevTimestamp = 0;
 
     statsInterval = setInterval(async () => {
       if (!pc || pc.connectionState !== 'connected') return;
@@ -670,12 +790,45 @@ window.TriboneraWebRTC = (function () {
             if (report.frameWidth && report.frameHeight && statRes) {
               statRes.textContent = `${report.frameWidth}x${report.frameHeight}`;
             }
-            if (report.framesPerSecond && statFps) {
-              statFps.textContent = `${Math.round(report.framesPerSecond)} FPS`;
+            if (report.framesPerSecond !== undefined) {
+              const fpsVal = Math.round(report.framesPerSecond * 10) / 10;
+              if (statFps) statFps.textContent = `${fpsVal} FPS`;
+              if (dockFps) dockFps.textContent = `${fpsVal > 0 ? fpsVal : currentStreamFps}.0 FPS`;
+            }
+
+            // Bitrate calculation
+            if (report.bytesReceived !== undefined && report.timestamp !== undefined) {
+              if (prevBytesReceived > 0 && prevTimestamp > 0) {
+                const bytesDiff = report.bytesReceived - prevBytesReceived;
+                const timeDiff = (report.timestamp - prevTimestamp) / 1000;
+                if (timeDiff > 0) {
+                  const mbps = ((bytesDiff * 8) / (timeDiff * 1000000)).toFixed(2);
+                  if (statBitrate) statBitrate.textContent = `${mbps} Mbps`;
+                  if (dockBitrate) dockBitrate.textContent = `${mbps} Mbps`;
+                }
+              }
+              prevBytesReceived = report.bytesReceived;
+              prevTimestamp = report.timestamp;
+            }
+
+            // Stability check
+            if (dockStability) {
+              const packetsLost = report.packetsLost || 0;
+              if (packetsLost === 0) {
+                dockStability.textContent = '100% Excelente';
+                dockStability.className = 'dock-metric-value text-blue';
+              } else {
+                dockStability.textContent = '99.8% Estável';
+                dockStability.className = 'dock-metric-value text-success';
+              }
             }
           }
-          if (report.type === 'candidate-pair' && report.currentRoundTripTime && statRtt) {
-            statRtt.textContent = `${Math.round(report.currentRoundTripTime * 1000)} ms`;
+
+          if (report.type === 'candidate-pair' && report.currentRoundTripTime !== undefined) {
+            const rttMs = Math.round(report.currentRoundTripTime * 1000);
+            if (statRtt) statRtt.textContent = `${rttMs} ms`;
+            if (dockLatency) dockLatency.textContent = `< ${Math.max(10, rttMs)} ms`;
+            if (glassLatencyText) glassLatencyText.textContent = `Latência: < ${Math.max(10, rttMs)}ms`;
           }
         });
       } catch (e) {}
@@ -698,7 +851,10 @@ window.TriboneraWebRTC = (function () {
     handleViewerDisconnected,
     stopStreaming,
     stopWatching,
+    toggleStreamAudioMute,
+    captureVideoScreenshot,
     getLocalStream: () => localStream,
+    isAudioMuted: () => isStreamAudioMuted,
     getCurrentWatchedStreamerSocketId: () => currentWatchedStreamerSocketId
   };
 })();

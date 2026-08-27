@@ -12,9 +12,8 @@ try {
 }
 
 // Configuração do Servidor Remoto ou Local
-// Se você tiver uma URL pública (ex: Render/Railway), defina na variável CONCORD_SERVER_URL.
-// Por padrão, o Electron inicia o servidor interno localmente em http://localhost:3000
-const REMOTE_SERVER_URL = process.env.CONCORD_SERVER_URL || null;
+// Substitua pela sua URL do Render entre aspas simples ou duplas
+const REMOTE_SERVER_URL = process.env.CONCORD_SERVER_URL || 'https://tribonera-share.onrender.com';
 let serverPort = process.env.PORT || 3000;
 let isEmbeddedServerRunning = false;
 
