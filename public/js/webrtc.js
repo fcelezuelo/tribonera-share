@@ -528,34 +528,8 @@ window.TriboneraWebRTC = (function () {
 
     // Create standard SDP Offer with audio and video
     try {
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: false,
-        offerToReceiveVideo: false
-      });
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
-      // Optimize video sender for smooth 30/60 FPS transmission after local description is set
-      pc.getSenders().forEach(sender => {
-        if (sender.track && sender.track.kind === 'video' && sender.getParameters) {
-          try {
-            const params = sender.getParameters();
-            if (!params.encodings || params.encodings.length === 0) {
-              params.encodings = [{}];
-            }
-            if (currentStreamFps >= 60) {
-              params.encodings[0].maxFramerate = 60;
-              params.encodings[0].maxBitrate = 6000000;
-            } else {
-              params.encodings[0].maxFramerate = 30;
-              params.encodings[0].maxBitrate = 3500000;
-            }
-            params.degradationPreference = 'maintain-framerate';
-            sender.setParameters(params).catch(e => console.warn('setParameters note:', e));
-          } catch (e) {
-            console.warn('Sender parameter config note:', e);
-          }
-        }
-      });
 
       socket.emit('webrtc:offer', {
         targetSocketId: viewerSocketId,
@@ -604,14 +578,6 @@ window.TriboneraWebRTC = (function () {
     }
 
     viewerPeerConnection = new RTCPeerConnection(rtcConfig);
-
-    // Setup transceivers for receiving video and audio streams
-    try {
-      viewerPeerConnection.addTransceiver('video', { direction: 'recvonly' });
-      viewerPeerConnection.addTransceiver('audio', { direction: 'recvonly' });
-    } catch (tErr) {
-      console.warn('Transceiver add note:', tErr);
-    }
 
     // When remote track arrives, attach directly to video element and trigger play
     viewerPeerConnection.ontrack = (event) => {
