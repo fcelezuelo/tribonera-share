@@ -271,7 +271,7 @@ window.TriboneraWebRTC = (function () {
       const requestSystemAudio = audioConfig && audioConfig.systemAudio !== false;
       let audioActuallyCaptured = false;
 
-      // Prioritize System Audio Capture (Windows WASAPI / Loopback / Browser System Audio)
+      // Capture screen with audio support (browser tabs, system audio, and loopback)
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -280,23 +280,14 @@ window.TriboneraWebRTC = (function () {
             height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
             frameRate: { ideal: frameRate, max: frameRate }
           },
-          audio: requestSystemAudio ? {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            suppressLocalAudioPlayback: false,
-            channelCount: 2
-          } : false,
-          systemAudio: requestSystemAudio ? 'include' : 'exclude',
-          selfBrowserSurface: 'exclude',
-          surfaceSwitching: 'include'
+          audio: requestSystemAudio ? true : false
         });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
           // User canceled source selection
           throw optErr;
         }
-        console.warn('Tentativa primária com áudio avançado falhou, tentando áudio padrão:', optErr);
+        console.warn('Tentativa primária de captura com áudio falhou, tentando fallback flexível:', optErr);
 
         try {
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
@@ -306,14 +297,13 @@ window.TriboneraWebRTC = (function () {
               height: { ideal: height },
               frameRate: { ideal: frameRate, max: frameRate }
             },
-            audio: requestSystemAudio ? true : false,
-            systemAudio: requestSystemAudio ? 'include' : 'exclude'
+            audio: requestSystemAudio ? true : false
           });
         } catch (audioErr) {
           if (audioErr.name === 'NotAllowedError') {
             throw audioErr;
           }
-          console.warn('Tentativa com áudio simples falhou, iniciando somente vídeo:', audioErr);
+          console.warn('Tentativa com áudio falhou, iniciando somente vídeo:', audioErr);
 
           // Video-only fallback so screen share always succeeds
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
