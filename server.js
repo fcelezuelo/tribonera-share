@@ -108,6 +108,11 @@ function authenticateRequest(req) {
 }
 
 // Routes
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
