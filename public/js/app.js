@@ -362,8 +362,16 @@ window.TriboneraApp = (function () {
       renderActiveStreamsSidebar(data.activeStreams || []);
       renderHeaderStreams(data.activeStreams || []);
 
-      // If we are watching a stream, update its viewer list & info
-      if (currentWatchedStream) {
+      // If we are streaming, update the viewer list of our own stream
+      if (isCurrentlyStreaming) {
+        const myStreamData = activeStreamsList.find(s => s.streamerCode === currentUser.code || s.streamerSocketId === socket.id);
+        if (myStreamData) {
+          updateViewersList(myStreamData.viewers || []);
+        } else {
+          updateViewersList([]);
+        }
+      } else if (currentWatchedStream) {
+        // If we are watching a stream, update its viewer list & info
         const streamData = activeStreamsList.find(s => s.streamerSocketId === currentWatchedStream.streamerSocketId);
         if (streamData) {
           updateViewersList(streamData.viewers || []);
@@ -779,6 +787,7 @@ window.TriboneraApp = (function () {
     // Audio status & controls synchronization
     updateStreamerMuteButtonUI(false, result.hasAudio);
     updateLiveAudioStatus(result.hasAudio, false);
+    updateViewersList([]);
 
     if (footerQualityTag) footerQualityTag.textContent = `${result.resolution} ${result.fps} FPS`;
     if (footerAudioTag) footerAudioTag.textContent = result.hasAudio ? '🔊 Som Ativo' : '🔇 Sem Áudio';
