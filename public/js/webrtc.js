@@ -284,16 +284,19 @@ window.TriboneraWebRTC = (function () {
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
-            suppressLocalAudioPlayback: false
+            suppressLocalAudioPlayback: false,
+            channelCount: 2
           } : false,
-          systemAudio: requestSystemAudio ? 'include' : 'exclude'
+          systemAudio: requestSystemAudio ? 'include' : 'exclude',
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include'
         });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
           // User canceled source selection
           throw optErr;
         }
-        console.warn('Tentativa inicial getDisplayMedia falhou, tentando fallback:', optErr);
+        console.warn('Tentativa primária com áudio avançado falhou, tentando áudio padrão:', optErr);
 
         try {
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
@@ -303,13 +306,14 @@ window.TriboneraWebRTC = (function () {
               height: { ideal: height },
               frameRate: { ideal: frameRate, max: frameRate }
             },
-            audio: requestSystemAudio ? true : false
+            audio: requestSystemAudio ? true : false,
+            systemAudio: requestSystemAudio ? 'include' : 'exclude'
           });
         } catch (audioErr) {
           if (audioErr.name === 'NotAllowedError') {
             throw audioErr;
           }
-          console.warn('Tentativa com áudio falhou, iniciando somente vídeo:', audioErr);
+          console.warn('Tentativa com áudio simples falhou, iniciando somente vídeo:', audioErr);
 
           // Video-only fallback so screen share always succeeds
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
