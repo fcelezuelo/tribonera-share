@@ -272,6 +272,13 @@ window.TriboneraWebRTC = (function () {
       let audioActuallyCaptured = false;
 
       // Capture screen with audio support (browser tabs, system audio, and loopback)
+      const audioConstraints = requestSystemAudio ? {
+        autoGainControl: false,
+        echoCancellation: false,
+        noiseSuppression: false,
+        channelCount: 2
+      } : false;
+
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -280,7 +287,8 @@ window.TriboneraWebRTC = (function () {
             height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
             frameRate: { ideal: frameRate, max: frameRate }
           },
-          audio: requestSystemAudio ? true : false
+          audio: audioConstraints,
+          systemAudio: 'include'
         });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
@@ -297,7 +305,8 @@ window.TriboneraWebRTC = (function () {
               height: { ideal: height },
               frameRate: { ideal: frameRate, max: frameRate }
             },
-            audio: requestSystemAudio ? true : false
+            audio: requestSystemAudio ? true : false,
+            systemAudio: 'include'
           });
         } catch (audioErr) {
           if (audioErr.name === 'NotAllowedError') {
@@ -326,8 +335,8 @@ window.TriboneraWebRTC = (function () {
       if (audioActuallyCaptured) {
         capturedStream.getAudioTracks().forEach(t => { t.enabled = true; });
         console.log(`[WebRTC] Áudio capturado com sucesso! Total de trilhas de áudio: ${capturedStream.getAudioTracks().length}`);
-      } else {
-        console.warn('[WebRTC] Nenhuma trilha de áudio foi retornada pela captura de tela.');
+      } else if (requestSystemAudio) {
+        console.warn('[WebRTC] getDisplayMedia não retornou trilha de áudio na primeira tentativa. Verificando canal de som...');
       }
 
       // Check if user also requested microphone mixing

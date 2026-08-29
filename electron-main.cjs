@@ -8,6 +8,8 @@ app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
 app.commandLine.appendSwitch('allow-http-screen-capture');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
+// Habilita loopback de áudio do sistema operacional de forma nativa e sem restrições
+app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride,WebRtcAllowInputVolumeModification');
 
 let autoUpdater = null;
 try {
