@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { db, SUPABASE_SCHEMA_SQL } from './lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,63 +26,6 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
 
-const DATA_DIR = process.env.CONCORD_DATA_DIR || __dirname;
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const CODES_FILE = path.join(DATA_DIR, 'codes.json');
-const STREAMS_FILE = path.join(DATA_DIR, 'streams.json');
-
-// --- JSON Helpers ---
-function readJSON(filePath, defaultValue) {
-  try {
-    if (!fs.existsSync(filePath)) {
-      writeJSON(filePath, defaultValue);
-      return defaultValue;
-    }
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data || JSON.stringify(defaultValue));
-  } catch (err) {
-    console.error(`Error reading ${filePath}:`, err);
-    return defaultValue;
-  }
-}
-
-function writeJSON(filePath, data) {
-  try {
-    const parentDir = path.dirname(filePath);
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-    }
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (err) {
-    console.error(`Error writing ${filePath}:`, err);
-  }
-}
-
-// Initial check / setup
-function initDatabase() {
-  const codes = readJSON(CODES_FILE, []);
-  if (!codes.find(c => c.code === ADMIN_CODE)) {
-    codes.push({ code: ADMIN_CODE, used: true, role: 'admin', createdAt: Date.now() });
-    writeJSON(CODES_FILE, codes);
-  }
-
-  const users = readJSON(USERS_FILE, []);
-  if (!users.find(u => u.code === ADMIN_CODE)) {
-    users.push({
-      code: ADMIN_CODE,
-      nickname: 'Fellipe (Admin)',
-      role: 'admin',
-      token: 'admin-token-fellmaster123-perm',
-      createdAt: Date.now()
-    });
-    writeJSON(USERS_FILE, users);
-  }
-
-  writeJSON(STREAMS_FILE, { activeStreams: [] });
-}
-
-initDatabase();
-
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
@@ -89,7 +33,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper to authenticate request
-function authenticateRequest(req) {
+async function authenticateRequest(req) {
   let token = req.cookies?.tribonera_token;
   if (!token && req.headers.authorization) {
     token = req.headers.authorization.replace(/^[Bb]earer\s+/i, '').trim();
@@ -99,10 +43,9 @@ function authenticateRequest(req) {
   }
   
   if (!token) return null;
-  const users = readJSON(USERS_FILE, []);
-  let user = users.find(u => u.token === token);
+  let user = await db.findUserByToken(token);
   if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
-    user = users.find(u => u.code === ADMIN_CODE);
+    user = await db.findUserByCode(ADMIN_CODE);
   }
   return user || null;
 }
@@ -114,14 +57,24 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/api/version", (req, res) => {
-  const pkg = readJSON(path.join(__dirname, 'package.json'), { version: '1.0.4' });
-  const currentVersion = pkg.version || '1.0.4';
+  let version = '1.0.5';
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+    version = pkg.version || version;
+  } catch (e) {}
+
   res.status(200).json({
     name: "Concord",
-    version: currentVersion,
-    build: `stable-${currentVersion}`,
+    version: version,
+    build: `stable-${version}`,
     timestamp: Date.now(),
+    database: {
+      provider: db.isSupabaseConfigured() ? 'Supabase (PostgreSQL)' : 'Local Persistent Storage (Supabase Ready)',
+      isSupabaseConnected: db.isSupabaseConfigured()
+    },
     features: {
+      voiceChannels: true,
+      textChat: true,
       systemAudio: true,
       webrtcMesh: true,
       autoUpdate: true
@@ -136,29 +89,25 @@ app.get('/app', (req, res) => {
 // --- REST Auth APIs ---
 
 // 1. Validate Code
-app.post('/api/auth/validate-code', (req, res) => {
+app.post('/api/auth/validate-code', async (req, res) => {
   const rawCode = req.body.code;
   if (!rawCode || typeof rawCode !== 'string') {
     return res.status(400).json({ error: 'Código é obrigatório.' });
   }
 
   const code = rawCode.trim().toUpperCase();
-  const codes = readJSON(CODES_FILE, []);
-  const users = readJSON(USERS_FILE, []);
 
   // Check if admin
   if (code === ADMIN_CODE) {
-    let adminUser = users.find(u => u.code === ADMIN_CODE);
+    let adminUser = await db.findUserByCode(ADMIN_CODE);
     if (!adminUser) {
-      adminUser = {
+      adminUser = await db.createUser({
         code: ADMIN_CODE,
         nickname: 'Fellipe (Admin)',
         role: 'admin',
         token: 'admin-token-fellmaster123-perm',
         createdAt: Date.now()
-      };
-      users.push(adminUser);
-      writeJSON(USERS_FILE, users);
+      });
     }
     
     // Set cookie for session persistence
@@ -181,7 +130,7 @@ app.post('/api/auth/validate-code', (req, res) => {
   }
 
   // Check in users first (already registered)
-  const existingUser = users.find(u => u.code === code);
+  const existingUser = await db.findUserByCode(code);
   if (existingUser) {
     res.cookie('tribonera_token', existingUser.token, {
       maxAge: 365 * 24 * 60 * 60 * 1000,
@@ -201,8 +150,8 @@ app.post('/api/auth/validate-code', (req, res) => {
     });
   }
 
-  // Check if code exists in codes.json and is unused
-  const codeEntry = codes.find(c => c.code === code);
+  // Check if code exists in codes list
+  const codeEntry = await db.findCode(code);
   if (!codeEntry) {
     return res.status(404).json({ error: 'Código inválido ou inexistente. Peça um código ao Administrador.' });
   }
@@ -218,7 +167,7 @@ app.post('/api/auth/validate-code', (req, res) => {
 });
 
 // 2. Register New User with Code & Nickname
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { code: rawCode, nickname: rawNickname } = req.body;
   if (!rawCode || !rawNickname) {
     return res.status(400).json({ error: 'Código e Nickname são obrigatórios.' });
@@ -231,28 +180,25 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: 'O Nickname deve ter entre 2 e 25 caracteres.' });
   }
 
-  const codes = readJSON(CODES_FILE, []);
-  const users = readJSON(USERS_FILE, []);
-
   // Check if nickname is already taken by another user
-  const nickExists = users.find(u => u.nickname.toLowerCase() === nickname.toLowerCase());
+  const nickExists = await db.findUserByNickname(nickname);
   if (nickExists) {
     return res.status(400).json({ error: 'Este Nickname já está em uso por outro membro. Escolha outro.' });
   }
 
   // Check if already registered
-  const existingUser = users.find(u => u.code === code);
+  const existingUser = await db.findUserByCode(code);
   if (existingUser) {
     return res.status(400).json({ error: 'Este código já está registrado com outro nickname permanente.' });
   }
 
-  // Check code in codes.json
-  const codeIndex = codes.findIndex(c => c.code === code);
-  if (codeIndex === -1) {
+  // Check code
+  const codeEntry = await db.findCode(code);
+  if (!codeEntry) {
     return res.status(404).json({ error: 'Código inválido.' });
   }
 
-  if (codes[codeIndex].used) {
+  if (codeEntry.used) {
     return res.status(400).json({ error: 'Este código já foi usado.' });
   }
 
@@ -261,24 +207,24 @@ app.post('/api/auth/register', (req, res) => {
   const newUser = {
     code,
     nickname,
-    role: codes[codeIndex].role || 'user',
+    role: codeEntry.role || 'user',
     token,
     createdAt: Date.now()
   };
 
   // Mark code as used
-  codes[codeIndex].used = true;
-  codes[codeIndex].usedBy = nickname;
-  codes[codeIndex].usedAt = Date.now();
-  writeJSON(CODES_FILE, codes);
+  await db.updateCode(code, {
+    used: true,
+    usedBy: nickname,
+    usedAt: Date.now()
+  });
 
   // Save user
-  users.push(newUser);
-  writeJSON(USERS_FILE, users);
+  await db.createUser(newUser);
 
   // Set cookie for auto-login
   res.cookie('tribonera_token', token, {
-    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+    maxAge: 365 * 24 * 60 * 60 * 1000,
     httpOnly: false,
     sameSite: 'lax',
     path: '/'
@@ -296,13 +242,14 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 // 3. Verify Session / Auto-login
-app.get('/api/auth/verify', (req, res) => {
-  const user = authenticateRequest(req);
+app.get('/api/auth/verify', async (req, res) => {
+  const user = await authenticateRequest(req);
   if (!user) {
     return res.status(401).json({ error: 'Não autorizado ou sessão expirada / revogada.' });
   }
 
-  const streams = readJSON(STREAMS_FILE, { activeStreams: [] });
+  const channels = await db.getChannels();
+  const activeStreams = getActiveStreamsList();
 
   return res.json({
     valid: true,
@@ -311,7 +258,8 @@ app.get('/api/auth/verify', (req, res) => {
       nickname: user.nickname,
       role: user.role
     },
-    activeStreams: streams.activeStreams || []
+    channels,
+    activeStreams
   });
 });
 
@@ -321,10 +269,63 @@ app.post('/api/auth/logout', (req, res) => {
   return res.json({ success: true });
 });
 
+// --- Channels & Chat APIs ---
+
+// List channels
+app.get('/api/channels', async (req, res) => {
+  const user = await authenticateRequest(req);
+  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
+  const channels = await db.getChannels();
+  return res.json({ channels });
+});
+
+// Create channel (Admin or permitted users)
+app.post('/api/channels', async (req, res) => {
+  const user = await authenticateRequest(req);
+  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
+
+  const { name, type, category, topic } = req.body;
+  if (!name) return res.status(400).json({ error: 'Nome do canal é obrigatório.' });
+
+  const newChannel = await db.createChannel({
+    name,
+    type: type === 'voice' ? 'voice' : 'text',
+    category: category || (type === 'voice' ? 'SALAS DE VOZ' : 'CANAIS DE TEXTO'),
+    topic: topic || ''
+  });
+
+  // Broadcast to all connected clients
+  io.emit('channel:created', newChannel);
+
+  return res.json({ success: true, channel: newChannel });
+});
+
+// Delete channel
+app.delete('/api/channels/:id', async (req, res) => {
+  const user = await authenticateRequest(req);
+  if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores podem deletar canais.' });
+
+  const { id } = req.params;
+  await db.deleteChannel(id);
+
+  io.emit('channel:deleted', { channelId: id });
+  return res.json({ success: true });
+});
+
+// Get messages for a channel
+app.get('/api/channels/:id/messages', async (req, res) => {
+  const user = await authenticateRequest(req);
+  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
+
+  const { id } = req.params;
+  const messages = await db.getMessages(id, 100);
+  return res.json({ messages });
+});
+
 // --- Admin APIs ---
 
-function requireAdmin(req, res, next) {
-  const user = authenticateRequest(req);
+async function requireAdmin(req, res, next) {
+  const user = await authenticateRequest(req);
   if (!user) {
     return res.status(401).json({ error: 'Sessão expirada ou não autenticada. Faça login novamente.' });
   }
@@ -336,11 +337,10 @@ function requireAdmin(req, res, next) {
 }
 
 // Get admin dashboard data
-app.get('/api/admin/data', requireAdmin, (req, res) => {
-  const codes = readJSON(CODES_FILE, []);
-  const users = readJSON(USERS_FILE, []);
-  const streams = readJSON(STREAMS_FILE, { activeStreams: [] });
-
+app.get('/api/admin/data', requireAdmin, async (req, res) => {
+  const codes = await db.getCodes();
+  const users = await db.getUsers();
+  const activeStreams = getActiveStreamsList();
   const onlineSockets = Array.from(onlineUsers.values());
 
   const usersWithStatus = users.map(u => {
@@ -349,27 +349,30 @@ app.get('/api/admin/data', requireAdmin, (req, res) => {
       code: u.code,
       nickname: u.nickname,
       role: u.role,
-      createdAt: u.createdAt,
+      createdAt: u.created_at || u.createdAt,
       isOnline: !!onlineSession,
       status: onlineSession ? onlineSession.status : '⚫ Offline',
       watching: onlineSession?.watchingStreamerName || null,
-      isStreaming: streams.activeStreams?.some(s => s.streamerCode === u.code) || false
+      voiceChannel: onlineSession?.voiceChannelName || null,
+      isStreaming: activeStreams.some(s => s.streamerCode === u.code)
     };
   });
 
   return res.json({
     codes,
     users: usersWithStatus,
-    activeStreams: streams.activeStreams || [],
-    totalOnline: onlineSockets.length
+    activeStreams,
+    totalOnline: onlineSockets.length,
+    database: {
+      provider: db.isSupabaseConfigured() ? 'Supabase' : 'Local Persistence',
+      isSupabaseConnected: db.isSupabaseConfigured()
+    }
   });
 });
 
 // Generate new random 6-character code
-app.post('/api/admin/generate-code', requireAdmin, (req, res) => {
-  const codes = readJSON(CODES_FILE, []);
-  
-  // Generate random uppercase 6 char alphanumeric (excluding ambiguous characters 0/O, 1/I)
+app.post('/api/admin/generate-code', requireAdmin, async (req, res) => {
+  const codes = await db.getCodes();
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let newCode = '';
   let attempts = 0;
@@ -389,8 +392,7 @@ app.post('/api/admin/generate-code', requireAdmin, (req, res) => {
     createdAt: Date.now()
   };
 
-  codes.push(newEntry);
-  writeJSON(CODES_FILE, codes);
+  await db.createCode(newEntry);
 
   return res.json({
     success: true,
@@ -399,46 +401,30 @@ app.post('/api/admin/generate-code', requireAdmin, (req, res) => {
 });
 
 // Revoke unused code
-app.post('/api/admin/revoke-code', requireAdmin, (req, res) => {
+app.post('/api/admin/revoke-code', requireAdmin, async (req, res) => {
   const { code } = req.body;
   if (!code || code === ADMIN_CODE) {
     return res.status(400).json({ error: 'Não é possível revogar este código.' });
   }
 
-  let codes = readJSON(CODES_FILE, []);
-  const targetCode = codes.find(c => c.code === code);
-  if (!targetCode) {
-    return res.status(404).json({ error: 'Código não encontrado.' });
-  }
-
-  codes = codes.filter(c => c.code !== code);
-  writeJSON(CODES_FILE, codes);
-
+  await db.deleteCode(code);
   return res.json({ success: true, message: `Código ${code} revogado com sucesso.` });
 });
 
-// Remove user (permanently revokes access and disconnects)
-app.post('/api/admin/remove-user', requireAdmin, (req, res) => {
+// Remove user
+app.post('/api/admin/remove-user', requireAdmin, async (req, res) => {
   const { code } = req.body;
   if (!code || code === ADMIN_CODE) {
     return res.status(400).json({ error: 'Não é possível remover o administrador principal.' });
   }
 
-  let users = readJSON(USERS_FILE, []);
-  let codes = readJSON(CODES_FILE, []);
-  const userToRemove = users.find(u => u.code === code);
-
+  const userToRemove = await db.findUserByCode(code);
   if (!userToRemove) {
     return res.status(404).json({ error: 'Usuário não encontrado.' });
   }
 
-  // Remove from users.json
-  users = users.filter(u => u.code !== code);
-  writeJSON(USERS_FILE, users);
-
-  // Remove or revoke from codes.json
-  codes = codes.filter(c => c.code !== code);
-  writeJSON(CODES_FILE, codes);
+  await db.deleteUser(code);
+  await db.deleteCode(code);
 
   // Disconnect active socket if online
   for (const [socketId, onlineUser] of onlineUsers.entries()) {
@@ -452,9 +438,7 @@ app.post('/api/admin/remove-user', requireAdmin, (req, res) => {
     }
   }
 
-  // Clean up any active stream by this user
   cleanupUserStream(code);
-
   broadcastPresence();
 
   return res.json({
@@ -463,17 +447,25 @@ app.post('/api/admin/remove-user', requireAdmin, (req, res) => {
   });
 });
 
-// --- In-Memory State & Socket.IO WebRTC Signaling ---
-// socket.id => { socketId, code, nickname, role, token, status: '🟢 Online' | '🔴 Transmitindo' | '👀 Assistindo', watchingStreamerCode, watchingStreamerName }
+// Supabase Schema definition for manual export
+app.get('/api/admin/supabase-schema', requireAdmin, (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(SUPABASE_SCHEMA_SQL);
+});
+
+// --- In-Memory State & Real-Time Socket.IO Handlers ---
+// socket.id => { socketId, code, nickname, role, token, status, voiceChannelId, voiceChannelName, isMuted, isDeafened, isSpeaking, watchingStreamerCode, watchingStreamerName }
 const onlineUsers = new Map();
 
-// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map(socketId => { code, nickname }), startedAt }
+// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map, startedAt }
 const memoryStreams = new Map();
+
+// Voice channels active participant maps: channelId => Map(socketId => { socketId, code, nickname, isMuted, isDeafened, isSpeaking })
+const voiceRooms = new Map();
 
 function getActiveStreamsList() {
   const list = [];
   for (const [, stream] of memoryStreams.entries()) {
-    // Group and deduplicate viewers by their unique user code
     const uniqueViewersMap = new Map();
     for (const [sId, viewerInfo] of stream.viewers.entries()) {
       const code = typeof viewerInfo === 'object' && viewerInfo.code ? viewerInfo.code : sId;
@@ -505,14 +497,18 @@ function getActiveStreamsList() {
   return list;
 }
 
-function syncStreamsToDisk() {
-  const activeStreams = getActiveStreamsList();
-  writeJSON(STREAMS_FILE, { activeStreams });
+function getVoiceRoomsSummary() {
+  const summary = {};
+  for (const [channelId, participants] of voiceRooms.entries()) {
+    summary[channelId] = Array.from(participants.values());
+  }
+  return summary;
 }
 
-function broadcastPresence() {
-  const allUsers = readJSON(USERS_FILE, []);
+async function broadcastPresence() {
+  const allUsers = await db.getUsers();
   const activeStreamsList = getActiveStreamsList();
+  const voiceSummary = getVoiceRoomsSummary();
 
   const userMap = new Map();
 
@@ -527,11 +523,15 @@ function broadcastPresence() {
         role: user.role,
         status: user.status,
         watchingStreamerName: user.watchingStreamerName || null,
+        voiceChannelId: user.voiceChannelId || null,
+        voiceChannelName: user.voiceChannelName || null,
+        isMuted: !!user.isMuted,
+        isDeafened: !!user.isDeafened,
+        isSpeaking: !!user.isSpeaking,
         isStreaming: isStreaming
       });
     } else {
       const existing = userMap.get(user.code);
-      // Prioritize active streaming state, then watching state
       if (isStreaming) {
         existing.isStreaming = true;
         existing.status = '🔴 Transmitindo';
@@ -559,6 +559,7 @@ function broadcastPresence() {
     onlineUsers: onlineList,
     offlineUsers: offlineList,
     activeStreams: activeStreamsList,
+    voiceRooms: voiceSummary,
     totalOnline: onlineList.length,
     totalRegistered: allUsers.length
   };
@@ -578,7 +579,6 @@ function cleanupUserStream(userCodeOrSocketId) {
   if (targetSocketId && memoryStreams.has(targetSocketId)) {
     const stream = memoryStreams.get(targetSocketId);
     
-    // Notify all viewers that stream ended
     for (const [viewerSocketId] of stream.viewers.entries()) {
       const viewerSocket = io.sockets.sockets.get(viewerSocketId);
       if (viewerSocket) {
@@ -587,7 +587,6 @@ function cleanupUserStream(userCodeOrSocketId) {
           streamerName: stream.streamerName
         });
       }
-      // Reset viewer status
       const viewerUser = onlineUsers.get(viewerSocketId);
       if (viewerUser) {
         viewerUser.status = '🟢 Online';
@@ -597,7 +596,6 @@ function cleanupUserStream(userCodeOrSocketId) {
     }
 
     memoryStreams.delete(targetSocketId);
-    syncStreamsToDisk();
     
     io.emit('stream:stopped', {
       streamerSocketId: targetSocketId,
@@ -606,15 +604,44 @@ function cleanupUserStream(userCodeOrSocketId) {
   }
 }
 
+function removeUserFromVoiceChannel(socketId) {
+  const user = onlineUsers.get(socketId);
+  if (!user || !user.voiceChannelId) return;
+
+  const channelId = user.voiceChannelId;
+  if (voiceRooms.has(channelId)) {
+    const room = voiceRooms.get(channelId);
+    room.delete(socketId);
+    if (room.size === 0) {
+      voiceRooms.delete(channelId);
+    }
+  }
+
+  // Notify other members in voice room
+  io.to(`voice:${channelId}`).emit('voice:user-left', {
+    socketId,
+    code: user.code,
+    nickname: user.nickname,
+    channelId
+  });
+
+  user.voiceChannelId = null;
+  user.voiceChannelName = null;
+  user.isSpeaking = false;
+}
+
 // Socket.IO Middleware: Authenticate connection token
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
   if (!token) {
     return next(new Error('Autenticação necessária.'));
   }
 
-  const users = readJSON(USERS_FILE, []);
-  const user = users.find(u => u.token === token);
+  let user = await db.findUserByToken(token);
+  if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
+    user = await db.findUserByCode(ADMIN_CODE);
+  }
+
   if (!user) {
     return next(new Error('Token inválido ou revogado.'));
   }
@@ -623,10 +650,9 @@ io.use((socket, next) => {
   next();
 });
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   const user = socket.user;
 
-  // Check if user is already connected from another tab
   let wasAlreadyOnline = false;
   for (const [, existing] of onlineUsers.entries()) {
     if (existing.code === user.code) {
@@ -635,7 +661,6 @@ io.on('connection', (socket) => {
     }
   }
 
-  // Add to online map
   onlineUsers.set(socket.id, {
     socketId: socket.id,
     code: user.code,
@@ -643,25 +668,31 @@ io.on('connection', (socket) => {
     role: user.role,
     token: user.token,
     status: '🟢 Online',
+    voiceChannelId: null,
+    voiceChannelName: null,
+    isMuted: false,
+    isDeafened: false,
+    isSpeaking: false,
     watchingStreamerCode: null,
     watchingStreamerName: null,
     joinedAt: Date.now()
   });
 
   // Send initial data to this socket
+  const channels = await db.getChannels();
   socket.emit('init:state', {
     currentUser: {
       code: user.code,
       nickname: user.nickname,
       role: user.role
     },
-    activeStreams: getActiveStreamsList()
+    channels,
+    activeStreams: getActiveStreamsList(),
+    voiceRooms: getVoiceRoomsSummary()
   });
 
-  // Broadcast presence to all
   broadcastPresence();
 
-  // Broadcast real-time notification only if this is a fresh new connection
   if (!wasAlreadyOnline) {
     socket.broadcast.emit('user:joined', {
       nickname: user.nickname,
@@ -670,9 +701,179 @@ io.on('connection', (socket) => {
     });
   }
 
-  // --- WebRTC & Screen Sharing Handlers ---
+  // --- Voice Channel Room Signaling & Audio Mesh Handlers ---
 
-  // 1. User starts screen share
+  // 1. Join Voice Channel
+  socket.on('voice:join', async ({ channelId, channelName }) => {
+    const onlineUser = onlineUsers.get(socket.id);
+    if (!onlineUser) return;
+
+    // Leave any existing voice room first
+    if (onlineUser.voiceChannelId) {
+      socket.leave(`voice:${onlineUser.voiceChannelId}`);
+      removeUserFromVoiceChannel(socket.id);
+    }
+
+    onlineUser.voiceChannelId = channelId;
+    onlineUser.voiceChannelName = channelName || 'Sala de Voz';
+    onlineUser.isMuted = false;
+    onlineUser.isDeafened = false;
+    onlineUser.isSpeaking = false;
+
+    if (!voiceRooms.has(channelId)) {
+      voiceRooms.set(channelId, new Map());
+    }
+
+    const room = voiceRooms.get(channelId);
+    const existingParticipants = Array.from(room.values());
+
+    room.set(socket.id, {
+      socketId: socket.id,
+      code: onlineUser.code,
+      nickname: onlineUser.nickname,
+      isMuted: onlineUser.isMuted,
+      isDeafened: onlineUser.isDeafened,
+      isSpeaking: onlineUser.isSpeaking
+    });
+
+    socket.join(`voice:${channelId}`);
+
+    // Inform the joined user of all peers currently in the channel (to initiate WebRTC audio mesh)
+    socket.emit('voice:joined-success', {
+      channelId,
+      channelName: onlineUser.voiceChannelName,
+      peers: existingParticipants
+    });
+
+    // Notify peers that a new user joined
+    socket.to(`voice:${channelId}`).emit('voice:user-joined', {
+      socketId: socket.id,
+      code: onlineUser.code,
+      nickname: onlineUser.nickname,
+      isMuted: onlineUser.isMuted,
+      isDeafened: onlineUser.isDeafened
+    });
+
+    broadcastPresence();
+  });
+
+  // 2. Leave Voice Channel
+  socket.on('voice:leave', () => {
+    const onlineUser = onlineUsers.get(socket.id);
+    if (onlineUser && onlineUser.voiceChannelId) {
+      socket.leave(`voice:${onlineUser.voiceChannelId}`);
+      removeUserFromVoiceChannel(socket.id);
+      socket.emit('voice:left-success');
+      broadcastPresence();
+    }
+  });
+
+  // 3. Toggle Mute / Deafen
+  socket.on('voice:state-change', ({ isMuted, isDeafened }) => {
+    const onlineUser = onlineUsers.get(socket.id);
+    if (!onlineUser || !onlineUser.voiceChannelId) return;
+
+    onlineUser.isMuted = !!isMuted;
+    onlineUser.isDeafened = !!isDeafened;
+
+    const room = voiceRooms.get(onlineUser.voiceChannelId);
+    if (room && room.has(socket.id)) {
+      const p = room.get(socket.id);
+      p.isMuted = onlineUser.isMuted;
+      p.isDeafened = onlineUser.isDeafened;
+    }
+
+    io.to(`voice:${onlineUser.voiceChannelId}`).emit('voice:user-state-updated', {
+      socketId: socket.id,
+      code: onlineUser.code,
+      isMuted: onlineUser.isMuted,
+      isDeafened: onlineUser.isDeafened
+    });
+
+    broadcastPresence();
+  });
+
+  // 4. User Speaking Activity (Green glowing ring around avatar)
+  socket.on('voice:speaking', ({ isSpeaking }) => {
+    const onlineUser = onlineUsers.get(socket.id);
+    if (!onlineUser || !onlineUser.voiceChannelId) return;
+
+    onlineUser.isSpeaking = !!isSpeaking;
+    const room = voiceRooms.get(onlineUser.voiceChannelId);
+    if (room && room.has(socket.id)) {
+      room.get(socket.id).isSpeaking = !!isSpeaking;
+    }
+
+    socket.to(`voice:${onlineUser.voiceChannelId}`).emit('voice:user-speaking', {
+      socketId: socket.id,
+      code: onlineUser.code,
+      isSpeaking: !!isSpeaking
+    });
+  });
+
+  // 5. Voice WebRTC Peer-to-Peer Mesh Relay Signaling
+  socket.on('voice:peer-offer', ({ targetSocketId, offer }) => {
+    io.to(targetSocketId).emit('voice:peer-offer', {
+      fromSocketId: socket.id,
+      fromNickname: socket.user.nickname,
+      fromCode: socket.user.code,
+      offer
+    });
+  });
+
+  socket.on('voice:peer-answer', ({ targetSocketId, answer }) => {
+    io.to(targetSocketId).emit('voice:peer-answer', {
+      fromSocketId: socket.id,
+      fromNickname: socket.user.nickname,
+      answer
+    });
+  });
+
+  socket.on('voice:peer-ice-candidate', ({ targetSocketId, candidate }) => {
+    io.to(targetSocketId).emit('voice:peer-ice-candidate', {
+      fromSocketId: socket.id,
+      candidate
+    });
+  });
+
+  // --- Real-Time Text Chat Handlers (Supabase / DB Synced) ---
+
+  socket.on('chat:join-channel', ({ channelId }) => {
+    socket.join(`chat:${channelId}`);
+  });
+
+  socket.on('chat:leave-channel', ({ channelId }) => {
+    socket.leave(`chat:${channelId}`);
+  });
+
+  socket.on('chat:send-message', async (data) => {
+    const { channelId, content, attachments } = data;
+    if (!channelId || !content || !content.trim()) return;
+
+    const newMsg = await db.createMessage({
+      channelId,
+      serverId: 'concord-main',
+      userCode: socket.user.code,
+      userNickname: socket.user.nickname,
+      userAvatar: socket.user.avatar || null,
+      content: content.trim(),
+      attachments: attachments || []
+    });
+
+    io.to(`chat:${channelId}`).emit('chat:new-message', newMsg);
+  });
+
+  socket.on('chat:typing', ({ channelId, isTyping }) => {
+    socket.to(`chat:${channelId}`).emit('chat:user-typing', {
+      channelId,
+      nickname: socket.user.nickname,
+      code: socket.user.code,
+      isTyping
+    });
+  });
+
+  // --- Screen Sharing Handlers ---
+
   socket.on('stream:start', (data = {}) => {
     const streamer = onlineUsers.get(socket.id);
     if (!streamer) return;
@@ -693,7 +894,6 @@ io.on('connection', (socket) => {
       startedAt: Date.now()
     });
 
-    syncStreamsToDisk();
     broadcastPresence();
 
     socket.broadcast.emit('stream:started', {
@@ -707,7 +907,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 2. User stops screen share
   socket.on('stream:stop', () => {
     const streamer = onlineUsers.get(socket.id);
     if (streamer) {
@@ -717,7 +916,6 @@ io.on('connection', (socket) => {
     broadcastPresence();
   });
 
-  // 3. Viewer requests to watch a specific stream
   const handleWatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (!viewer) return;
@@ -727,20 +925,16 @@ io.on('connection', (socket) => {
       return socket.emit('stream:error', { message: 'Transmissão não encontrada ou já encerrada.' });
     }
 
-    // Update viewer status
     viewer.status = `👀 Assistindo`;
     viewer.watchingStreamerCode = stream.streamerCode;
     viewer.watchingStreamerName = stream.streamerName;
 
-    // Add viewer to stream viewers map
     stream.viewers.set(socket.id, {
       code: viewer.code,
       nickname: viewer.nickname
     });
-    syncStreamsToDisk();
     broadcastPresence();
 
-    // Signal the streamer that a new viewer wants WebRTC connection
     io.to(streamerSocketId).emit('webrtc:new-viewer', {
       viewerSocketId: socket.id,
       viewerNickname: viewer.nickname,
@@ -751,7 +945,6 @@ io.on('connection', (socket) => {
   socket.on('stream:watch', handleWatchStream);
   socket.on('stream:join-viewer', handleWatchStream);
 
-  // 4. Viewer stops watching a stream
   const handleUnwatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (viewer) {
@@ -770,14 +963,12 @@ io.on('connection', (socket) => {
       });
     }
 
-    syncStreamsToDisk();
     broadcastPresence();
   };
 
   socket.on('stream:unwatch', handleUnwatchStream);
   socket.on('stream:leave-viewer', handleUnwatchStream);
 
-  // 5. WebRTC Relay Signaling: Offer (Streamer -> Viewer)
   socket.on('webrtc:offer', ({ targetSocketId, offer }) => {
     io.to(targetSocketId).emit('webrtc:offer', {
       fromSocketId: socket.id,
@@ -786,7 +977,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 6. WebRTC Relay Signaling: Answer (Viewer -> Streamer)
   socket.on('webrtc:answer', ({ targetSocketId, answer }) => {
     io.to(targetSocketId).emit('webrtc:answer', {
       fromSocketId: socket.id,
@@ -795,7 +985,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 7. WebRTC Relay Signaling: ICE Candidate (Bidirectional)
   socket.on('webrtc:ice-candidate', ({ targetSocketId, candidate }) => {
     io.to(targetSocketId).emit('webrtc:ice-candidate', {
       fromSocketId: socket.id,
@@ -803,14 +992,14 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 8. Handle Disconnect
+  // Handle Disconnect
   socket.on('disconnect', () => {
-    // If was streaming, cleanup stream
+    removeUserFromVoiceChannel(socket.id);
+
     if (memoryStreams.has(socket.id)) {
       cleanupUserStream(socket.id);
     }
 
-    // If was watching someone, remove from their viewers list
     const userState = onlineUsers.get(socket.id);
     if (userState && userState.watchingStreamerCode) {
       for (const [, stream] of memoryStreams.entries()) {
@@ -822,7 +1011,6 @@ io.on('connection', (socket) => {
           });
         }
       }
-      syncStreamsToDisk();
     }
 
     onlineUsers.delete(socket.id);
@@ -832,8 +1020,9 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`=============================================`);
-  console.log(`  Concord Server rodando na porta ${PORT}`);
+  console.log(`  Concord Platform rodando na porta ${PORT}`);
   console.log(`  Painel Admin Code: ${ADMIN_CODE}`);
+  console.log(`  Database: ${db.isSupabaseConfigured() ? 'Supabase' : 'Local Persistence (Supabase Compatible)'}`);
   console.log(`  Acesse: http://localhost:${PORT}`);
   console.log(`=============================================`);
 });

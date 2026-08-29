@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Concord — Sala de Transmissão</title>
+  <title>Concord — Plataforma de Voz, Vídeo e Comunidade</title>
   <link rel="icon" type="image/png" href="/img/concord_icon.png">
   <link rel="apple-touch-icon" href="/img/concord_icon.png">
   <link rel="stylesheet" href="/css/style.css">
@@ -14,196 +14,321 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="app-body">
-  <!-- App Top Navigation Bar -->
-  <header class="app-header" id="app-header">
-    <div class="header-left">
-      <!-- Mobile Sidebar Drawer Toggle Button -->
-      <button id="btn-mobile-sidebar-toggle" class="btn-mobile-icon" title="Abrir Canais" aria-label="Abrir Menu de Canais">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-
-      <div class="server-badge">
-        <div class="server-icon server-icon-concord">
-          <img src="/img/concord_icon.png" alt="Concord" class="server-concord-logo">
-        </div>
-        <div class="server-meta">
-          <span class="server-name">Concord</span>
-          <span class="channel-current">
-            <svg class="hash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4"></path>
-            </svg>
-            Comunidade Privada
-          </span>
+  
+  <!-- APP SHELL: 4-COLUMN DISCORD ARCHITECTURE -->
+  <div class="discord-shell" id="discord-shell">
+    
+    <!-- 1. LEFTMOST SERVER RAIL -->
+    <nav class="guilds-nav" id="guilds-nav" aria-label="Servidores">
+      <div class="guild-item active" id="guild-home" title="Mensagens Diretas">
+        <div class="guild-pill"></div>
+        <div class="guild-icon guild-icon-home">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.73 4.87a18.2 18.2 0 0 0-4.6-1.44c-.2.35-.4.8-.56 1.18a16.8 16.8 0 0 0-5.14 0c-.16-.38-.36-.83-.56-1.18a18.2 18.2 0 0 0-4.6 1.44C1.3 9.3.48 13.62.88 17.88a18.4 18.4 0 0 0 5.6 2.85c.45-.62.85-1.28 1.2-1.98a12 12 0 0 1-1.9-1c.16-.11.32-.23.47-.35a13.1 13.1 0 0 0 11.5 0c.15.12.31.24.47.35-.6.38-1.24.72-1.9 1 .35.7.75 1.36 1.2 1.98a18.4 18.4 0 0 0 5.6-2.85c.48-4.9-.84-9.18-3.42-13.01zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12zm6.96 0c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
+          </svg>
         </div>
       </div>
-    </div>
 
-    <!-- Active streams pills in header for fast switching -->
-    <div class="header-center" id="header-streams-bar">
-      <!-- Injected via JS when streams are active -->
-    </div>
+      <div class="guild-separator"></div>
 
-    <div class="header-right">
-      <!-- Mobile Members Drawer Toggle Button -->
-      <button id="btn-mobile-users-toggle" class="btn-mobile-icon" title="Ver Membros" aria-label="Ver Lista de Membros">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-      </button>
-
-      <!-- Sound Effects Toggle Button -->
-      <button id="btn-toggle-sound" class="btn btn-sound-toggle" title="Efeitos Sonoros (Ativado)" aria-label="Alternar Efeitos Sonoros">
-        <svg class="icon-sound icon-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-        </svg>
-        <svg class="icon-sound icon-sound-off hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-          <line x1="23" y1="9" x2="17" y2="15"></line>
-          <line x1="17" y1="9" x2="23" y2="15"></line>
-        </svg>
-      </button>
-
-      <!-- Admin Button (Hidden by default, shown for admin role) -->
-      <button id="btn-open-admin" class="btn btn-admin hidden" title="Abrir Painel do Administrador">
-        <svg class="icon-admin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-        </svg>
-        <span>Painel Admin</span>
-      </button>
-
-      <!-- Current User Profile Bar -->
-      <div class="current-user-chip" id="current-user-chip">
-        <div class="user-avatar-wrapper">
-          <div class="user-avatar" id="my-avatar-text">U</div>
-          <span class="status-indicator online" id="my-status-dot"></span>
+      <!-- Concord Main Server -->
+      <div class="guild-item active" id="guild-concord" title="Comunidade Concord">
+        <div class="guild-pill"></div>
+        <div class="guild-icon guild-icon-server">
+          <img src="/img/concord_icon.png" alt="Concord" class="guild-logo-img">
         </div>
-        <div class="user-details">
-          <span class="user-nick" id="my-nickname-display">Carregando...</span>
-          <span class="user-role-tag" id="my-role-tag">Membro</span>
+      </div>
+
+      <!-- Add Channel / Explore -->
+      <div class="guild-item" id="btn-open-create-channel" title="Criar Novo Canal">
+        <div class="guild-icon guild-icon-action">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
         </div>
-        <button id="btn-logout" class="btn-icon-logout" title="Sair da Conta">
+      </div>
+    </nav>
+
+    <!-- 2. CHANNELS & VOICE SIDEBAR -->
+    <aside class="channels-sidebar" id="channels-sidebar">
+      
+      <!-- Server Header Dropdown -->
+      <div class="server-header" id="server-header-dropdown">
+        <div class="server-title-wrap">
+          <span class="server-name">Comunidade Concord</span>
+          <span class="server-verified-badge" title="Servidor Verificado">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+          </span>
+        </div>
+        <button class="btn-server-menu" id="btn-server-menu" aria-label="Opções do Servidor">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-            <polyline points="16 17 21 12 16 7"></polyline>
-            <line x1="21" y1="12" x2="9" y2="12"></line>
+            <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
         </button>
       </div>
-    </div>
-  </header>
 
-  <!-- Main App Layout with 3 Columns: Channels/Controls, Stage, User List -->
-  <div class="app-layout" id="app-layout">
-    
-    <!-- LEFT SIDEBAR: Channels, Stream Launch & My Controls -->
-    <aside class="sidebar-channels" id="sidebar-channels">
-      <div class="sidebar-section-header">
-        <span>TRANSMISSÕES AO VIVO</span>
+      <!-- Channels Scrollable Tree -->
+      <div class="channels-scroller" id="channels-scroller">
+        
+        <!-- Screen Sharing Quick Banner -->
+        <div class="channel-action-card">
+          <div class="action-card-header">
+            <span class="action-card-lbl">TRANSMISSÃO AO VIVO</span>
+          </div>
+          <div class="action-card-content">
+            <button id="btn-quick-share-screen" class="btn btn-discord-share btn-sm btn-block">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span>Transmitir Tela</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Category: Text Channels -->
+        <div class="channel-category" id="cat-text-channels">
+          <div class="category-header">
+            <div class="cat-title-wrap">
+              <svg class="cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <span class="cat-title">CANAIS DE TEXTO</span>
+            </div>
+            <button class="btn-add-channel" data-type="text" title="Criar Canal de Texto">+</button>
+          </div>
+          <div class="channels-list" id="list-text-channels">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Category: Voice Channels -->
+        <div class="channel-category" id="cat-voice-channels">
+          <div class="category-header">
+            <div class="cat-title-wrap">
+              <svg class="cat-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <span class="cat-title">SALAS DE VOZ & STREAM</span>
+            </div>
+            <button class="btn-add-channel" data-type="voice" title="Criar Sala de Voz">+</button>
+          </div>
+          <div class="channels-list" id="list-voice-channels">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Active Streams Channel Category -->
+        <div class="channel-category" id="cat-active-streams">
+          <div class="category-header">
+            <div class="cat-title-wrap">
+              <span class="pulse-dot-red"></span>
+              <span class="cat-title">TRANSMISSÕES ATIVAS (<span id="count-active-streams">0</span>)</span>
+            </div>
+          </div>
+          <div class="channels-list" id="sidebar-streams-list">
+            <div class="empty-channels-note" id="empty-channels-note">
+              Nenhuma tela transmitida agora.
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Quick Action: Share Screen Card -->
-      <div class="share-control-card" id="share-control-card">
-        <div class="card-status-label" id="share-card-status">COMPARTILHAMENTO DE TELA</div>
-        
-        <!-- Not streaming view -->
-        <div id="view-not-streaming" class="stream-action-block">
-          <div class="stream-quality-selector">
-            <label class="quality-label">Qualidade & Taxa de Quadros:</label>
-            <select id="select-stream-quality" class="quality-select">
-              <option value="1080p60" selected>⚡ 1080p Full HD @ 60 FPS (Ultra Fluido)</option>
-              <option value="1080p30">1080p Full HD @ 30 FPS (Padrão)</option>
-              <option value="720p60">⚡ 720p HD @ 60 FPS (Rápido e Fluido)</option>
-              <option value="720p30">720p HD @ 30 FPS (Mais Leve)</option>
-              <option value="1440p60">⚡ 1440p 2K @ 60 FPS (Máxima Definição)</option>
-              <option value="1440p30">1440p 2K @ 30 FPS (Alta Definição)</option>
-            </select>
+      <!-- VOICE CONNECTION BAR (Visible when joined in any voice room) -->
+      <div class="voice-connection-bar hidden" id="voice-connection-bar">
+        <div class="voice-conn-status-row">
+          <div class="voice-conn-indicator">
+            <span class="pulse-dot-green"></span>
+            <div class="voice-conn-texts">
+              <span class="voice-conn-state">Voz Conectada</span>
+              <span class="voice-conn-channel" id="voice-current-channel-name">Geral - Conversa</span>
+            </div>
           </div>
-
-          <button id="btn-start-share" class="btn btn-discord-share">
-            <svg class="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="voice-ping-badge" title="Latência WebRTC de Áudio">
+            <span id="voice-ping-val">12 ms</span>
+          </div>
+        </div>
+        <div class="voice-quick-actions">
+          <button class="btn-voice-action" id="btn-voice-bar-mute" title="Mutar Microfone">
+            <svg class="mic-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <svg class="mic-off-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
+          <button class="btn-voice-action" id="btn-voice-bar-deafen" title="Desativar Áudio (Deafen)">
+            <svg class="deafen-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+            </svg>
+            <svg class="deafen-off-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+            </svg>
+          </button>
+          <button class="btn-voice-action" id="btn-voice-bar-screen" title="Compartilhar Tela nesta Sala">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
               <line x1="8" y1="21" x2="16" y2="21"></line>
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
-            <span>Compartilhar Tela</span>
           </button>
-        </div>
-
-        <!-- Currently streaming view -->
-        <div id="view-is-streaming" class="stream-action-block active-streaming-box hidden">
-          <div class="live-active-badge">
-            <span class="pulse-dot"></span>
-            <span>VOCÊ ESTÁ TRANSMITINDO</span>
-          </div>
-          <div class="streaming-info">
-            <span class="stream-timer" id="my-stream-timer">00:00</span>
-            <span class="stream-specs" id="my-stream-specs">1080p @ 60 FPS</span>
-          </div>
-          <div class="streaming-quick-actions">
-            <button id="btn-sidebar-mute-audio" class="btn-streamer-audio-pill" title="Mutar ou desmutar transmissão de áudio">
-              <svg id="sidebar-audio-icon" class="audio-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              </svg>
-              <span id="sidebar-audio-status-label">Som Ativo</span>
-            </button>
-          </div>
-          <button id="btn-stop-share" class="btn btn-danger btn-block">
-            <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          <button class="btn-voice-action btn-voice-disconnect" id="btn-voice-bar-disconnect" title="Desconectar da Voz">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
             </svg>
-            <span>Encerrar Transmissão</span>
           </button>
         </div>
       </div>
 
-      <!-- Active Streams Channel List -->
-      <div class="sidebar-section-header">
-        <span>CANAIS DISPONÍVEIS (<span id="count-active-streams">0</span>)</span>
-      </div>
-
-      <div class="active-streams-channel-list" id="sidebar-streams-list">
-        <!-- Injected via JS: Each active stream as a channel row -->
-        <div class="empty-channels-note" id="empty-channels-note">
-          Nenhuma transmissão ativa no momento.
+      <!-- Current User Footer Controls -->
+      <div class="user-footer-controls" id="user-footer-controls">
+        <div class="user-footer-profile" id="user-profile-trigger">
+          <div class="avatar-box">
+            <div class="avatar-text" id="my-avatar-text">U</div>
+            <span class="status-dot online" id="my-status-dot"></span>
+          </div>
+          <div class="user-footer-names">
+            <span class="footer-nick" id="my-nickname-display">Carregando...</span>
+            <span class="footer-custom-tag" id="my-role-tag">#0000</span>
+          </div>
         </div>
-      </div>
 
-      <!-- User Device Quick Footer -->
-      <div class="sidebar-user-footer">
-        <div class="footer-user-info">
-          <span class="footer-nick" id="footer-user-name">Você</span>
-          <span class="footer-status-text" id="footer-user-status">🟢 Online</span>
-        </div>
-        <div class="footer-controls">
-          <button class="btn-version-badge" id="btn-version-badge" title="Informações da Versão e Atualizações">
-            <span class="version-dot" id="version-status-dot"></span>
-            <span id="display-app-version">v1.0.5</span>
+        <div class="user-footer-buttons">
+          <button class="btn-footer-icon" id="btn-mute-mic" title="Mutar Microfone">
+            <svg id="footer-mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
+          <button class="btn-footer-icon" id="btn-deafen" title="Desativar Áudio">
+            <svg id="footer-deafen-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+            </svg>
+          </button>
+          <button class="btn-footer-icon" id="btn-open-settings" title="Configurações">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
           </button>
         </div>
       </div>
     </aside>
 
-    <!-- CENTER: Main Stage & Video Viewport -->
-    <main class="stage-container" id="stage-container">
+    <!-- 3. MAIN CENTER VIEW: CHAT & VIDEO STAGE -->
+    <main class="main-content" id="main-content">
       
-      <!-- Stage Switcher Tabs (When multiple users are streaming) -->
-      <div class="stage-stream-tabs hidden" id="stage-stream-tabs">
-        <!-- Tab chips injected dynamically -->
-      </div>
+      <!-- Top Channel Bar -->
+      <header class="channel-top-bar" id="channel-top-bar">
+        <div class="channel-header-left">
+          <!-- Mobile Sidebar Toggle -->
+          <button id="btn-mobile-sidebar-toggle" class="btn-mobile-icon" title="Abrir Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
 
-      <!-- Active Stream Stage -->
-      <div class="video-stage-wrapper" id="video-stage-wrapper">
+          <div class="channel-title-group">
+            <span class="channel-hash-icon" id="channel-type-icon">#</span>
+            <h1 class="channel-active-name" id="active-channel-name">geral</h1>
+          </div>
+          <span class="channel-divider"></span>
+          <span class="channel-topic-text" id="active-channel-topic">Bate-papo principal da comunidade</span>
+        </div>
+
+        <div class="channel-header-right">
+          <!-- Switch View Button (Chat <-> Stage) -->
+          <button class="btn-header-view-toggle hidden" id="btn-toggle-stage-view" title="Alternar para visualização de Transmissão">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span>Ver Tela Ao Vivo</span>
+          </button>
+
+          <!-- Admin Button -->
+          <button id="btn-open-admin" class="btn btn-admin hidden" title="Painel do Administrador">
+            <svg class="icon-admin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <span>Admin</span>
+          </button>
+
+          <!-- Toggle Members List Button -->
+          <button id="btn-toggle-members-panel" class="btn-header-icon" title="Ocultar / Mostrar Lista de Membros">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW A: DISCORD REAL-TIME TEXT CHAT -->
+      <section class="chat-container-view" id="chat-container-view">
+        <div class="chat-messages-scroller" id="chat-messages-scroller">
+          <!-- Channel Welcome Greeting Card -->
+          <div class="channel-welcome-banner" id="channel-welcome-banner">
+            <div class="welcome-hash-circle">#</div>
+            <h2 class="welcome-title" id="welcome-channel-title">Bem-vindo a #geral!</h2>
+            <p class="welcome-desc">Este é o início do canal <strong id="welcome-channel-name">#geral</strong>.</p>
+          </div>
+
+          <!-- Messages stream container -->
+          <div class="messages-list" id="messages-list">
+            <!-- Dynamically populated via JS -->
+          </div>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="chat-input-wrapper">
+          <div class="typing-indicator-bar" id="typing-indicator-bar">
+            <span class="typing-dots"><span></span><span></span><span></span></span>
+            <span id="typing-users-text"></span>
+          </div>
+
+          <form class="chat-input-form" id="chat-input-form">
+            <button type="button" class="btn-chat-attach" id="btn-chat-attach" title="Enviar Anexo / Imagem">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+              </svg>
+            </button>
+            <input type="text" id="chat-message-input" class="chat-input-field" placeholder="Conversar em #geral..." autocomplete="off" maxlength="2000">
+            <button type="submit" class="btn-chat-send" id="btn-chat-send" title="Enviar Mensagem">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- VIEW B: HIGH-DEFINITION VIDEO & SCREEN SHARE STAGE -->
+      <section class="stage-container-view hidden" id="stage-container-view">
         
-        <!-- Video Player Header Overlay (Green Mark Area) -->
+        <!-- Video Header Overlay -->
         <div class="video-header-bar hidden" id="video-header-bar">
           <div class="streamer-info">
             <div class="streamer-avatar" id="current-streamer-avatar">J</div>
@@ -211,54 +336,41 @@
               <div class="streamer-name-row">
                 <span class="streamer-title" id="current-streamer-title">Tela de João</span>
                 <span class="badge-live-tag">AO VIVO</span>
-                <!-- Real-time Live Duration Counter -->
-                <div class="live-timer-badge" id="current-stream-uptime-badge" title="Tempo de transmissão contínuo">
+                <div class="live-timer-badge" id="current-stream-uptime-badge">
                   <span class="uptime-dot"></span>
                   <span id="current-stream-uptime">00:00:00</span>
                 </div>
               </div>
               <div class="streamer-specs-row">
                 <span class="streamer-specs-tag" id="current-streamer-specs">1080p • 60 FPS</span>
-                <!-- Real-time Audio Status Indicator & Equalizer -->
-                <div class="live-audio-status-pill audio-on" id="live-audio-status-pill" title="Status de transmissão de áudio">
+                <div class="live-audio-status-pill audio-on" id="live-audio-status-pill">
                   <div class="equalizer-anim" id="equalizer-anim">
                     <span></span><span></span><span></span>
                   </div>
-                  <span id="live-audio-status-text">🔊 Som do Sistema Ativo</span>
+                  <span id="live-audio-status-text">🔊 Áudio do Sistema Ativo</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="stage-top-actions">
-            <!-- Broadcaster Controls (Only visible when user is streaming) -->
+            <!-- Broadcaster Actions -->
             <div class="broadcaster-header-actions hidden" id="broadcaster-header-actions">
-              <button id="btn-streamer-mute-audio" class="btn-discord-audio-toggle" title="Mutar ou desmutar som da transmissão">
-                <svg id="icon-streamer-audio-state" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
+              <button id="btn-streamer-mute-audio" class="btn-discord-audio-toggle">
                 <span id="streamer-audio-toggle-label">Som Ativo</span>
               </button>
-              <button id="btn-header-stop-share" class="btn-leave-stream" title="Encerrar Transmissão">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-                </svg>
+              <button id="btn-header-stop-share" class="btn-leave-stream">
                 <span>Encerrar Transmissão</span>
               </button>
             </div>
 
-            <!-- Viewer Controls (Only visible when watching someone else) -->
-            <button id="btn-stop-watching" class="btn-leave-stream hidden" title="Parar de Assistir">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+            <!-- Viewer Actions -->
+            <button id="btn-stop-watching" class="btn-leave-stream hidden">
               <span>Sair da Transmissão</span>
             </button>
 
-            <!-- WebRTC Connection Diagnostics Button -->
-            <button id="btn-stats-toggle" class="btn-stage-icon" title="Estatísticas de Conexão WebRTC">
+            <!-- Diagnostics -->
+            <button id="btn-stats-toggle" class="btn-stage-icon" title="Diagnóstico WebRTC">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 20V10M12 20V4M6 20v-6"></path>
               </svg>
@@ -266,59 +378,25 @@
           </div>
         </div>
 
-        <!-- Video Player Element Container -->
+        <!-- Video Stage Viewport -->
         <div class="video-viewport" id="video-viewport">
-          <!-- WebRTC Remote Video (watching someone) -->
           <video id="remote-video" class="stream-video" autoplay playsinline></video>
-          
-          <!-- WebRTC Dedicated Audio Fallback Pipeline -->
           <audio id="remote-audio-player" autoplay playsinline style="display:none;"></audio>
-
-          <!-- Autoplay Audio Unmute Floating Action -->
-          <button class="unmute-floating-pill hidden" id="btn-unmute-prompt">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            </svg>
-            <span>🔊 Clique para Ativar Áudio da Transmissão</span>
-          </button>
-          
-          <!-- WebRTC Local Preview Video (when self is streaming) -->
           <video id="local-preview-video" class="stream-video preview hidden" autoplay playsinline muted></video>
 
-          <!-- Top-Right Floating Viewers Glass Badge (When watching/streaming) -->
+          <button class="unmute-floating-pill hidden" id="btn-unmute-prompt">
+            <span>🔊 Clique para Ativar Som da Transmissão</span>
+          </button>
+
+          <!-- Floating Viewers Count -->
           <div class="glass-viewers-badge hidden" id="glass-viewers-badge">
-            <div class="glass-viewers-avatars" id="glass-viewers-avatars">
-              <!-- Dynamically populated avatar bubbles -->
-            </div>
             <span class="glass-viewers-count" id="glass-viewers-count">0 Espectadores</span>
           </div>
 
-          <!-- Bottom-Left Floating Latency Glass Badge -->
-          <div class="glass-latency-badge hidden" id="glass-latency-badge">
-            <span class="pulse-dot-green"></span>
-            <span id="glass-latency-text">Latência: &lt; 15ms</span>
-          </div>
-
-          <!-- WebRTC Real-Time Stats HUD (Toggleable) -->
-          <div class="stats-hud hidden" id="stats-hud">
-            <div class="stats-hud-header">
-              <span>WebRTC Diagnóstico</span>
-              <button class="btn-close-stats" id="btn-close-stats">×</button>
-            </div>
-            <div class="stats-grid">
-              <div class="stat-item"><span class="stat-lbl">Resolução:</span> <strong id="stat-resolution">1920x1080</strong></div>
-              <div class="stat-item"><span class="stat-lbl">Taxa de Quadros:</span> <strong id="stat-fps">60 FPS</strong></div>
-              <div class="stat-item"><span class="stat-lbl">Bitrate Médio:</span> <strong id="stat-bitrate">-- Mbps</strong></div>
-              <div class="stat-item"><span class="stat-lbl">Latência / RTT:</span> <strong id="stat-rtt">&lt; 15 ms</strong></div>
-              <div class="stat-item"><span class="stat-lbl">Codec / Modo:</span> <strong id="stat-codec">VP9 / H.264 HD</strong></div>
-            </div>
-          </div>
-
-          <!-- Video Custom Controls Floating Bar (Hover) -->
+          <!-- Video Controls Overlay -->
           <div class="video-controls-overlay hidden" id="video-controls-overlay">
             <div class="controls-left">
-              <button id="btn-toggle-audio" class="control-btn" title="Mutar / Desmutar Áudio do Player">
+              <button id="btn-toggle-audio" class="control-btn" title="Volume">
                 <svg id="icon-volume-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                   <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -333,13 +411,13 @@
             </div>
 
             <div class="controls-right">
-              <button id="btn-screenshot-video" class="control-btn" title="📸 Tirar Screenshot da Live">
+              <button id="btn-screenshot-video" class="control-btn" title="Screenshot">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                   <circle cx="12" cy="13" r="4"></circle>
                 </svg>
               </button>
-              <button id="btn-pip" class="control-btn" title="Picture-in-Picture (Janela Flutuante)">
+              <button id="btn-pip" class="control-btn" title="Janela Flutuante (PiP)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                   <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
@@ -353,144 +431,131 @@
             </div>
           </div>
 
-          <!-- Empty Stage Placeholder (When not watching and not streaming) -->
+          <!-- Empty Stage Placeholder -->
           <div class="empty-stage-state" id="empty-stage-state">
-            <div class="empty-stage-graphic">
-              <div class="discord-screen-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <line x1="8" y1="21" x2="16" y2="21"></line>
-                  <line x1="12" y1="17" x2="12" y2="21"></line>
-                  <polygon points="10 8 16 11.5 10 15 10 8" fill="#5865F2"></polygon>
-                </svg>
-              </div>
-            </div>
-            <h2 class="empty-title">Nenhuma Transmissão Selecionada</h2>
-            <p class="empty-subtitle">Compartilhe sua tela para os amigos ou clique em uma transmissão ao vivo na lista lateral para assistir.</p>
-            <div class="empty-actions">
-              <button id="btn-empty-start-share" class="btn btn-discord-share">
-                <svg class="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <line x1="8" y1="21" x2="16" y2="21"></line>
-                  <line x1="12" y1="17" x2="12" y2="21"></line>
-                </svg>
-                <span>Compartilhar Minha Tela Agora</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Discord-like Minimal Live Viewers & Info Bar -->
-        <div class="stream-minimal-footer hidden" id="viewers-bar">
-          <div class="minimal-footer-left">
-            <div class="minimal-viewers-count">
-              <span class="pulse-dot-green"></span>
-              <span>Assistindo (<strong id="viewers-count-num">0</strong>)</span>
-            </div>
-            <div class="viewers-chips-container" id="viewers-chips-container">
-              <span class="empty-viewers-text">Nenhum espectador</span>
-            </div>
-          </div>
-
-          <div class="minimal-footer-right">
-            <div class="stream-tag-pill" id="footer-quality-tag">1080p 60 FPS</div>
-            <div class="stream-tag-pill tag-audio" id="footer-audio-tag">🔊 Som Ativo</div>
-            <button id="btn-dock-screenshot" class="btn-minimal-action" title="📸 Tirar Screenshot">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-            </button>
-            <button id="btn-dock-pip" class="btn-minimal-action" title="Janela Flutuante (PiP)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div class="discord-screen-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+                <polygon points="10 8 16 11.5 10 15 10 8" fill="#5865F2"></polygon>
               </svg>
-            </button>
-            <button id="btn-dock-fullscreen" class="btn-minimal-action" title="Tela Cheia">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-              </svg>
+            </div>
+            <h2 class="empty-title">Nenhuma Transmissão Ativa</h2>
+            <p class="empty-subtitle">Compartilhe sua tela ou entre em uma sala de voz para conversar e transmitir.</p>
+            <button id="btn-start-share" class="btn btn-discord-share">
+              <span>Compartilhar Tela Agora</span>
             </button>
           </div>
         </div>
-      </div>
+      </section>
+
     </main>
 
-    <!-- RIGHT SIDEBAR: Community Members Presence List -->
+    <!-- 4. RIGHTMOST MEMBERS SIDEBAR -->
     <aside class="sidebar-users" id="sidebar-users">
       <div class="users-header">
-        <span>MEMBROS (<span id="count-total-members">0</span>)</span>
+        <span>MEMBROS — <strong id="count-total-members">0</strong></span>
       </div>
 
       <div class="users-scrollable-list">
-        <!-- Category 1: Streaming -->
+        <!-- Live Streamers -->
         <div class="users-category-group" id="group-streaming">
           <div class="category-header">
             <span class="cat-title">🔴 TRANSMITINDO</span>
             <span class="cat-count" id="count-streaming">0</span>
           </div>
-          <div class="category-users-list" id="list-users-streaming">
-            <!-- Injected via JS -->
-          </div>
+          <div class="category-users-list" id="list-users-streaming"></div>
         </div>
 
-        <!-- Category 2: Online -->
+        <!-- In Voice Room -->
+        <div class="users-category-group" id="group-in-voice">
+          <div class="category-header">
+            <span class="cat-title">🔊 EM SALA DE VOZ</span>
+            <span class="cat-count" id="count-in-voice">0</span>
+          </div>
+          <div class="category-users-list" id="list-users-in-voice"></div>
+        </div>
+
+        <!-- Online -->
         <div class="users-category-group" id="group-online">
           <div class="category-header">
-            <span class="cat-title">🟢 ONLINE</span>
+            <span class="cat-title">🟢 DISPONÍVEIS</span>
             <span class="cat-count" id="count-online">0</span>
           </div>
-          <div class="category-users-list" id="list-users-online">
-            <!-- Injected via JS -->
-          </div>
+          <div class="category-users-list" id="list-users-online"></div>
         </div>
 
-        <!-- Category 3: Offline -->
+        <!-- Offline -->
         <div class="users-category-group" id="group-offline">
           <div class="category-header">
             <span class="cat-title">⚫ OFFLINE</span>
             <span class="cat-count" id="count-offline">0</span>
           </div>
-          <div class="category-users-list" id="list-users-offline">
-            <!-- Injected via JS -->
-          </div>
+          <div class="category-users-list" id="list-users-offline"></div>
         </div>
       </div>
     </aside>
+
   </div>
 
-  <!-- Mobile Drawer Backdrop Overlay -->
-  <div class="mobile-drawer-overlay hidden" id="mobile-drawer-overlay"></div>
+  <!-- MODALS -->
 
-  <!-- Mobile Bottom Tab Bar (Visible only on mobile & tablet) -->
-  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
-    <button class="mobile-nav-btn active" id="nav-btn-stage" data-view="stage">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-        <line x1="8" y1="21" x2="16" y2="21"></line>
-        <line x1="12" y1="17" x2="12" y2="21"></line>
-      </svg>
-      <span>Transmissão</span>
-    </button>
-    <button class="mobile-nav-btn" id="nav-btn-channels" data-view="channels">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-      </svg>
-      <span>Canais</span>
-    </button>
-    <button class="mobile-nav-btn" id="nav-btn-members" data-view="members">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-        <circle cx="9" cy="7" r="4"></circle>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-      </svg>
-      <span>Membros</span>
-    </button>
-  </nav>
+  <!-- 1. CREATE CHANNEL MODAL -->
+  <div class="admin-modal-overlay hidden" id="create-channel-modal">
+    <div class="admin-modal-container" style="max-width: 460px;">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <h2 class="admin-title">Criar Canal</h2>
+          <p class="admin-subtitle">em Comunidade Concord</p>
+        </div>
+        <button class="btn-close-modal" id="btn-close-create-channel">&times;</button>
+      </div>
+      <form id="form-create-channel" class="admin-modal-body">
+        <div class="modal-form-group">
+          <label class="modal-form-label">TIPO DO CANAL</label>
+          <div class="channel-type-radio-group">
+            <label class="channel-type-card active" id="type-card-text">
+              <input type="radio" name="channel_type" value="text" checked style="display:none;">
+              <span class="type-icon">#</span>
+              <div class="type-texts">
+                <strong>Texto</strong>
+                <small>Poste mensagens, imagens e memes</small>
+              </div>
+            </label>
+            <label class="channel-type-card" id="type-card-voice">
+              <input type="radio" name="channel_type" value="voice" style="display:none;">
+              <span class="type-icon">🔊</span>
+              <div class="type-texts">
+                <strong>Voz & Vídeo</strong>
+                <small>Converse por voz, compartilhe tela e jogue junto</small>
+              </div>
+            </label>
+          </div>
+        </div>
 
-  <!-- ADMIN MODAL / DRAWER (Visible for admin role only) -->
+        <div class="modal-form-group">
+          <label class="modal-form-label" for="input-new-channel-name">NOME DO CANAL</label>
+          <div class="input-with-prefix">
+            <span class="prefix" id="new-channel-prefix">#</span>
+            <input type="text" id="input-new-channel-name" class="modal-input" placeholder="novo-canal" required maxlength="30">
+          </div>
+        </div>
+
+        <div class="modal-form-group">
+          <label class="modal-form-label" for="input-new-channel-topic">TÓPICO (OPCIONAL)</label>
+          <input type="text" id="input-new-channel-topic" class="modal-input" placeholder="Sobre o que é este canal?" maxlength="100">
+        </div>
+
+        <div class="modal-actions-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-create-channel">Cancelar</button>
+          <button type="submit" class="btn btn-discord-share">Criar Canal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. ADMIN MODAL (Com Tab Supabase) -->
   <div class="admin-modal-overlay hidden" id="admin-modal-overlay">
     <div class="admin-modal-container" id="admin-modal-container">
       <div class="admin-modal-header">
@@ -502,16 +567,16 @@
           </div>
           <div>
             <h2 class="admin-title">Painel do Administrador</h2>
-            <p class="admin-subtitle">Gerencie convites, membros e permissões da comunidade</p>
+            <p class="admin-subtitle">Gerencie convites, membros, canais e base de dados</p>
           </div>
         </div>
         <button id="btn-close-admin" class="btn-close-modal">×</button>
       </div>
 
-      <!-- Admin Navigation Tabs -->
       <div class="admin-nav-tabs">
         <button class="admin-tab active" data-tab="tab-codes" id="tab-btn-codes">Códigos de Acesso</button>
         <button class="admin-tab" data-tab="tab-users" id="tab-btn-users">Membros & Usuários</button>
+        <button class="admin-tab" data-tab="tab-database" id="tab-btn-database">Base de Dados / Supabase</button>
       </div>
 
       <div class="admin-modal-body">
@@ -520,232 +585,121 @@
           <div class="admin-action-banner">
             <div>
               <h3 class="banner-title">Gerar Novo Código de Convite</h3>
-              <p class="banner-desc">Crie um código de 6 dígitos único para um amigo entrar na comunidade.</p>
+              <p class="banner-desc">Crie um código de 6 dígitos único para um amigo entrar no Concord.</p>
             </div>
             <button id="btn-generate-code" class="btn btn-discord-share">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
               <span>Gerar Código</span>
             </button>
           </div>
 
-          <!-- Newly generated code alert -->
           <div id="new-code-alert" class="new-code-alert hidden">
             <span class="new-code-lbl">NOVO CÓDIGO CRIADO:</span>
             <span class="new-code-val" id="display-new-code">XK29PL</span>
             <button id="btn-copy-code" class="btn btn-secondary btn-sm">Copiar Código</button>
           </div>
 
-          <!-- Codes list table -->
           <div class="admin-table-wrapper">
             <table class="admin-table">
               <thead>
                 <tr>
                   <th>Código</th>
                   <th>Status</th>
-                  <th>Vinculado a (Nickname)</th>
+                  <th>Vinculado a</th>
                   <th>Ações</th>
                 </tr>
               </thead>
-              <tbody id="table-codes-body">
-                <!-- Injected via JS -->
-              </tbody>
+              <tbody id="table-codes-body"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- Tab 2: Users Management -->
+        <!-- Tab 2: Users -->
         <div class="admin-tab-content hidden" id="tab-users">
           <div class="admin-table-wrapper">
             <table class="admin-table">
               <thead>
                 <tr>
                   <th>Nickname</th>
-                  <th>Código Vinculado</th>
+                  <th>Código</th>
                   <th>Cargo</th>
-                  <th>Status em Tempo Real</th>
+                  <th>Status</th>
                   <th>Ação</th>
                 </tr>
               </thead>
-              <tbody id="table-users-body">
-                <!-- Injected via JS -->
-              </tbody>
+              <tbody id="table-users-body"></tbody>
             </table>
           </div>
         </div>
+
+        <!-- Tab 3: Supabase SQL Schema -->
+        <div class="admin-tab-content hidden" id="tab-database">
+          <div class="supabase-info-box">
+            <h3 class="banner-title">⚡ Integração Supabase (PostgreSQL)</h3>
+            <p class="banner-desc" style="margin-bottom: 12px;">
+              O Concord suporta conexão nativa com o <strong>Supabase</strong>. Se você tiver um projeto no Supabase, defina <code>SUPABASE_URL</code> e <code>SUPABASE_KEY</code> no seu arquivo <code>.env</code> ou painel de configurações.
+            </p>
+            <p class="banner-desc">
+              Execute o script SQL abaixo no <strong>SQL Editor</strong> do seu dashboard do Supabase para criar as tabelas necessárias:
+            </p>
+          </div>
+
+          <div class="sql-code-box">
+            <pre><code id="supabase-sql-code">Carregando schema...</code></pre>
+          </div>
+          <button id="btn-copy-sql" class="btn btn-primary" style="margin-top: 10px;">Copiar Script SQL do Supabase</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Electron Screen & Window Source Picker Modal (Discord Style) -->
-  <div class="admin-modal-overlay hidden" id="desktop-picker-modal">
-    <div class="admin-modal-container desktop-picker-container">
+  <!-- 3. USER SETTINGS MODAL -->
+  <div class="admin-modal-overlay hidden" id="settings-modal">
+    <div class="admin-modal-container" style="max-width: 520px;">
       <div class="admin-modal-header">
         <div class="admin-title-wrap">
-          <div class="admin-badge-icon" style="background: rgba(88, 101, 242, 0.15); color: var(--accent-blurple);">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-          </div>
-          <div>
-            <h2 class="admin-title">Selecione a Tela ou Aplicativo</h2>
-            <p class="admin-subtitle">Escolha qual monitor ou janela deseja transmitir com som do sistema</p>
-          </div>
+          <h2 class="admin-title">Configurações do Concord</h2>
+          <p class="admin-subtitle">Voz, Vídeo, Áudio e Aplicativo</p>
         </div>
-        <button class="btn-close-modal" id="btn-close-picker-modal">&times;</button>
+        <button class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
-
       <div class="admin-modal-body">
-        <div class="picker-tabs-row">
-          <button class="picker-tab-btn active" id="tab-picker-screens">Telas (Monitores)</button>
-          <button class="picker-tab-btn" id="tab-picker-windows">Janelas / Jogos</button>
-        </div>
-
-        <div class="picker-sources-grid" id="picker-sources-grid">
-          <!-- Dynamically populated -->
-        </div>
-
-        <div class="picker-audio-notice">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-          </svg>
-          <span><strong>Som do Sistema:</strong> O áudio de jogos, vídeos e sons do PC será capturado e transmitido em alta fidelidade.</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Permission / Screen Share Options Modal -->
-  <div class="admin-modal-overlay hidden" id="permission-modal">
-    <div class="admin-modal-container permission-modal-container">
-      <div class="admin-modal-header">
-        <div class="admin-title-wrap">
-          <div class="admin-badge-icon permission-badge-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-          </div>
-          <div>
-            <h2 class="admin-title">Compartilhamento de Tela</h2>
-            <p class="admin-subtitle">Selecione como deseja transmitir para a comunidade</p>
-          </div>
-        </div>
-        <button class="btn-close-modal" id="btn-close-permission-modal">&times;</button>
-      </div>
-
-      <div class="admin-modal-body permission-modal-body">
-        <div class="permission-info-box">
-          <div class="info-icon">ℹ️</div>
-          <div class="info-text">
-            <strong>Restrição de Segurança do Navegador:</strong> A captura direta de tela do SO (janelas, jogos, abas com áudio) é restrita pelo navegador quando executada dentro de quadros embutidos (iframe).
-          </div>
-        </div>
-
-        <div class="stream-option-cards">
-          <!-- Option: Open in New Tab for Real OS Screen Capture -->
-          <div class="stream-option-card highlighted" style="border-color: var(--accent-blurple); background: rgba(88, 101, 242, 0.08);">
-            <div class="option-header">
-              <div class="option-icon-wrap os-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                  <polyline points="15 3 21 3 21 9"></polyline>
-                  <line x1="10" y1="14" x2="21" y2="3"></line>
-                </svg>
-              </div>
-              <div class="option-content">
-                <h4 class="option-title">Transmissão Direta do Sistema (Janelas, Jogos & Áudio)</h4>
-                <p class="option-desc">Transmita qualquer tela, jogo, janela ou aba do seu computador com som em tempo real via WebRTC.</p>
-              </div>
-            </div>
-            <a href="/app" target="_blank" class="btn btn-primary btn-block btn-launch-tab" id="btn-launch-new-tab">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-              <span>Abrir em Nova Aba</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Version Info & Auto-Update Modal -->
-  <div class="admin-modal-overlay hidden" id="update-modal">
-    <div class="admin-modal-container update-modal-container">
-      <div class="admin-modal-header">
-        <div class="admin-title-wrap">
-          <div class="admin-badge-icon" style="background: rgba(88, 101, 242, 0.15); color: var(--accent-blurple);">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-            </svg>
-          </div>
-          <div>
-            <h2 class="admin-title">Concord Atualizações</h2>
-            <p class="admin-subtitle">Gerencie versões e sincronização do cliente</p>
-          </div>
-        </div>
-        <button class="btn-close-modal" id="btn-close-update-modal">&times;</button>
-      </div>
-
-      <div class="admin-modal-body">
-        <div class="update-info-card">
-          <div class="update-meta-row">
-            <span class="update-meta-label">Versão do Aplicativo:</span>
-            <span class="update-meta-val" id="modal-app-version">v1.0.1</span>
-          </div>
-          <div class="update-meta-row">
-            <span class="update-meta-label">Plataforma:</span>
-            <span class="update-meta-val" id="modal-app-platform">Web / Electron</span>
-          </div>
-          <div class="update-meta-row">
-            <span class="update-meta-label">Status de Atualização:</span>
-            <span class="update-meta-val" id="modal-update-status" style="color: var(--status-online);">Aplicativo Atualizado</span>
-          </div>
-          <div class="update-meta-row">
-            <span class="update-meta-label">Som do Sistema:</span>
-            <span class="update-meta-val" style="color: var(--accent-blurple);">Ativo (WASAPI / WebRTC)</span>
-          </div>
-        </div>
-
-        <div class="update-actions-grid">
-          <button class="btn btn-primary btn-block" id="btn-check-for-updates-action">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-            </svg>
-            <span>Verificar Atualizações Agora</span>
-          </button>
+        <div class="settings-section">
+          <h4 class="settings-section-title">CONFIGURAÇÕES DE VOZ & MICROFONE</h4>
           
-          <button class="btn btn-secondary btn-block" id="btn-force-reload-action">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-            </svg>
-            <span>Forçar Recarregamento (Limpar Cache)</span>
-          </button>
+          <div class="settings-control-row">
+            <label>Dispositivo de Entrada (Microfone):</label>
+            <select id="select-audio-input" class="quality-select">
+              <option value="default">Microfone Padrão do Sistema</option>
+            </select>
+          </div>
 
-          <button class="btn btn-primary btn-block hidden" id="btn-apply-update-action" style="background: var(--status-online);">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <span>Reiniciar e Aplicar Atualização</span>
-          </button>
+          <div class="settings-control-row">
+            <label>Sensibilidade de Entrada & Detecção de Fala (VAD):</label>
+            <div class="mic-test-wrap">
+              <div class="mic-level-meter">
+                <div class="mic-level-fill" id="mic-test-fill"></div>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="btn-test-mic">Testar Microfone</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section" style="margin-top: 20px;">
+          <h4 class="settings-section-title">SOBRE O CONCORD</h4>
+          <p style="color: var(--text-muted); font-size: 13px;">
+            Versão: <strong>v1.0.5</strong> | Motor WebRTC Opus 48kHz Mesh | Supabase Ready
+          </p>
+        </div>
+
+        <div class="modal-actions-footer" style="margin-top: 24px;">
+          <button class="btn btn-danger" id="btn-settings-logout">Sair da Conta</button>
+          <button class="btn btn-primary" id="btn-save-settings">Pronto</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification Container -->
+  <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Application Scripts -->

@@ -1,6 +1,6 @@
 {
   "name": "Concord",
-  "description": "Compartilhamento de tela e streaming em tempo real inspirado no Discord com WebRTC e baixa latência.",
+  "description": "Plataforma completa inspirada no Discord com canais de texto, salas de voz em malha WebRTC, compartilhamento de tela com áudio de alta fidelidade e persistência Supabase.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
