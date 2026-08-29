@@ -114,10 +114,12 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/api/version", (req, res) => {
+  const pkg = readJSON(path.join(__dirname, 'package.json'), { version: '1.0.4' });
+  const currentVersion = pkg.version || '1.0.4';
   res.status(200).json({
     name: "Concord",
-    version: "1.0.1",
-    build: "stable-1.0.1",
+    version: currentVersion,
+    build: `stable-${currentVersion}`,
     timestamp: Date.now(),
     features: {
       systemAudio: true,

@@ -777,15 +777,20 @@ window.TriboneraWebRTC = (function () {
       });
       localStream = null;
     }
+    isStreamAudioMuted = false;
   }
 
   /**
    * Toggle Broadcaster Audio Mute in Real-Time
    */
   function toggleStreamAudioMute() {
-    if (!localStream) return false;
+    if (!localStream) {
+      return { success: false, hasAudio: false, isMuted: false };
+    }
     const audioTracks = localStream.getAudioTracks();
-    if (audioTracks.length === 0) return false;
+    if (audioTracks.length === 0) {
+      return { success: false, hasAudio: false, isMuted: false };
+    }
 
     isStreamAudioMuted = !isStreamAudioMuted;
     audioTracks.forEach(track => {
@@ -793,6 +798,17 @@ window.TriboneraWebRTC = (function () {
     });
 
     console.log(`[WebRTC] Áudio da transmissão ${isStreamAudioMuted ? 'MUTADO' : 'DESMUTADO'}`);
+    return { success: true, hasAudio: true, isMuted: isStreamAudioMuted };
+  }
+
+  function setStreamAudioMute(muted) {
+    if (!localStream) return false;
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) return false;
+    isStreamAudioMuted = !!muted;
+    audioTracks.forEach(track => {
+      track.enabled = !isStreamAudioMuted;
+    });
     return isStreamAudioMuted;
   }
 
@@ -970,9 +986,11 @@ window.TriboneraWebRTC = (function () {
     stopStreaming,
     stopWatching,
     toggleStreamAudioMute,
+    setStreamAudioMute,
     unmuteViewerAudio,
     captureVideoScreenshot,
     getLocalStream: () => localStream,
+    hasAudioTrack: () => (localStream ? localStream.getAudioTracks().length > 0 : false),
     isAudioMuted: () => isStreamAudioMuted,
     getCurrentWatchedStreamerSocketId: () => currentWatchedStreamerSocketId
   };

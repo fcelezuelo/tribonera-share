@@ -883,7 +883,16 @@ window.TriboneraApp = (function () {
 
   function handleToggleStreamAudio() {
     if (!isCurrentlyStreaming) return;
-    const isMuted = TriboneraWebRTC.toggleStreamAudioMute();
+    const hasAudio = TriboneraWebRTC.hasAudioTrack ? TriboneraWebRTC.hasAudioTrack() : false;
+    if (!hasAudio) {
+      showToast('Esta transmissão foi iniciada sem captura de áudio.', 'info');
+      updateStreamerMuteButtonUI(true, false);
+      updateLiveAudioStatus(false, false);
+      return;
+    }
+
+    const result = TriboneraWebRTC.toggleStreamAudioMute();
+    const isMuted = result.isMuted;
     updateStreamerMuteButtonUI(isMuted, true);
     updateLiveAudioStatus(true, isMuted);
     showToast(isMuted ? 'Áudio da transmissão mutado.' : 'Áudio da transmissão ativado.', 'info');
@@ -931,34 +940,51 @@ window.TriboneraApp = (function () {
   }
 
   function updateStreamerMuteButtonUI(isMuted, hasAudio = true) {
+    const iconHighSVG = `
+      <svg class="audio-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+      </svg>
+    `;
+    const iconMutedSVG = `
+      <svg class="audio-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    `;
+
     // 1. Update Video Header Button (Discord-styled)
     if (btnStreamerMuteAudio) {
       if (!hasAudio) {
         btnStreamerMuteAudio.classList.add('muted');
-        if (streamerAudioToggleLabel) streamerAudioToggleLabel.textContent = 'Sem Áudio';
+        btnStreamerMuteAudio.innerHTML = `${iconMutedSVG}<span>Sem Áudio</span>`;
         btnStreamerMuteAudio.setAttribute('title', 'Nenhum áudio foi capturado nesta transmissão');
       } else if (isMuted) {
         btnStreamerMuteAudio.classList.add('muted');
-        if (streamerAudioToggleLabel) streamerAudioToggleLabel.textContent = 'Desmutar Som';
-        btnStreamerMuteAudio.setAttribute('title', 'Clique para desmutar áudio da transmissão');
+        btnStreamerMuteAudio.innerHTML = `${iconMutedSVG}<span>Desmutar Som</span>`;
+        btnStreamerMuteAudio.setAttribute('title', 'Clique para desmutar som da transmissão');
       } else {
         btnStreamerMuteAudio.classList.remove('muted');
-        if (streamerAudioToggleLabel) streamerAudioToggleLabel.textContent = 'Mutar Som';
-        btnStreamerMuteAudio.setAttribute('title', 'Clique para mutar áudio da transmissão');
+        btnStreamerMuteAudio.innerHTML = `${iconHighSVG}<span>Mutar Som</span>`;
+        btnStreamerMuteAudio.setAttribute('title', 'Clique para mutar som da transmissão');
       }
     }
 
-    // 2. Update Left Sidebar Quick Action Pill
+    // 2. Update Left Sidebar Quick Action Pill (mirrored state)
     if (btnSidebarMuteAudio) {
       if (!hasAudio) {
         btnSidebarMuteAudio.classList.add('muted');
-        if (sidebarAudioStatusLabel) sidebarAudioStatusLabel.textContent = 'Sem Áudio';
+        btnSidebarMuteAudio.innerHTML = `${iconMutedSVG}<span>Sem Áudio</span>`;
+        btnSidebarMuteAudio.setAttribute('title', 'Nenhum áudio foi capturado');
       } else if (isMuted) {
         btnSidebarMuteAudio.classList.add('muted');
-        if (sidebarAudioStatusLabel) sidebarAudioStatusLabel.textContent = 'Áudio Mutado (Clique p/ Ativar)';
+        btnSidebarMuteAudio.innerHTML = `${iconMutedSVG}<span>Áudio Mutado (Ativar)</span>`;
+        btnSidebarMuteAudio.setAttribute('title', 'Clique para desmutar som da transmissão');
       } else {
         btnSidebarMuteAudio.classList.remove('muted');
-        if (sidebarAudioStatusLabel) sidebarAudioStatusLabel.textContent = 'Som Ativo (Clique p/ Mutar)';
+        btnSidebarMuteAudio.innerHTML = `${iconHighSVG}<span>Som Ativo (Mutar)</span>`;
+        btnSidebarMuteAudio.setAttribute('title', 'Clique para mutar som da transmissão');
       }
     }
   }
@@ -1350,22 +1376,23 @@ window.TriboneraApp = (function () {
     const isElectron = !!(window.electronAPI && window.electronAPI.isElectron);
 
     async function loadVersionData() {
-      let ver = '1.0.1';
+      let ver = '1.0.4';
       let platform = isElectron ? 'Desktop (Electron)' : 'Web (Navegador)';
+
+      // Puxa a versão atualizada diretamente do endpoint /api/version (lido do package.json)
+      try {
+        const res = await fetch('/api/version');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.version) ver = data.version;
+        }
+      } catch (e) {}
 
       if (isElectron && typeof window.electronAPI.getAppInfo === 'function') {
         try {
           const info = await window.electronAPI.getAppInfo();
-          if (info && info.version) ver = info.version;
           if (info && info.platform) platform = `Desktop (${info.platform})`;
-        } catch (e) {}
-      } else {
-        try {
-          const res = await fetch('/api/version');
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.version) ver = data.version;
-          }
+          if (info && info.version) ver = info.version;
         } catch (e) {}
       }
 

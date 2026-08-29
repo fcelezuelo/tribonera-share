@@ -124,7 +124,7 @@ async function createWindow() {
         
         callback({
           video: chosenSource,
-          audio: request.audioRequested ? 'loopback' : undefined
+          audio: 'loopback'
         });
       } else {
         callback(null);
