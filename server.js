@@ -23,7 +23,7 @@ const io = new Server(server, {
   pingInterval: 10000
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
 const ADMIN_INITIAL_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
