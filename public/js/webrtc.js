@@ -279,6 +279,7 @@ window.TriboneraWebRTC = (function () {
         channelCount: 2
       } : false;
 
+      // 1. Primary standard capture via getDisplayMedia
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -312,18 +313,47 @@ window.TriboneraWebRTC = (function () {
           if (audioErr.name === 'NotAllowedError') {
             throw audioErr;
           }
-          console.warn('Tentativa com áudio falhou, iniciando somente vídeo:', audioErr);
+          console.warn('Tentativa com áudio falhou, verificando motor Electron desktopCapturer:', audioErr);
+
+          // If inside Electron, try the native chromeMediaSource desktop engine
+          if (window.electronAPI && typeof window.electronAPI.getSelectedDesktopSource === 'function') {
+            try {
+              const selectedSourceId = await window.electronAPI.getSelectedDesktopSource();
+              if (selectedSourceId) {
+                capturedStream = await navigator.mediaDevices.getUserMedia({
+                  audio: requestSystemAudio ? {
+                    mandatory: {
+                      chromeMediaSource: 'desktop'
+                    }
+                  } : false,
+                  video: {
+                    mandatory: {
+                      chromeMediaSource: 'desktop',
+                      chromeMediaSourceId: selectedSourceId,
+                      maxWidth: width,
+                      maxHeight: height,
+                      maxFrameRate: frameRate
+                    }
+                  }
+                });
+              }
+            } catch (electronMediaErr) {
+              console.warn('Tentativa via chromeMediaSource falhou:', electronMediaErr);
+            }
+          }
 
           // Video-only fallback so screen share always succeeds
-          capturedStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-              cursor: 'always',
-              width: { ideal: width },
-              height: { ideal: height },
-              frameRate: { ideal: frameRate, max: frameRate }
-            },
-            audio: false
-          });
+          if (!capturedStream) {
+            capturedStream = await navigator.mediaDevices.getDisplayMedia({
+              video: {
+                cursor: 'always',
+                width: { ideal: width },
+                height: { ideal: height },
+                frameRate: { ideal: frameRate, max: frameRate }
+              },
+              audio: false
+            });
+          }
         }
       }
 

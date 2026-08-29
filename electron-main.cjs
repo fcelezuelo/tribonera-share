@@ -233,6 +233,10 @@ ipcMain.handle('select-desktop-source', (_event, sourceId) => {
   return true;
 });
 
+ipcMain.handle('get-selected-desktop-source', () => {
+  return selectedDesktopSourceId;
+});
+
 ipcMain.handle('get-desktop-sources', async () => {
   try {
     const sources = await desktopCapturer.getSources({
