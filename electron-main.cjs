@@ -18,6 +18,7 @@ let serverPort = process.env.PORT || 3000;
 let isEmbeddedServerRunning = false;
 
 let mainWindow = null;
+let selectedDesktopSourceId = null;
 
 function copyDefaultDataFiles(userDataPath) {
   try {
@@ -98,7 +99,7 @@ async function createWindow() {
     }
   });
 
-  // Tratador nativo de getDisplayMedia do Electron com captura de som do sistema (loopback WASAPI/CoreAudio)
+  // Tratador nativo de getDisplayMedia do Electron com suporte a loopback WASAPI de áudio do sistema
   session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
       const sources = await desktopCapturer.getSources({
@@ -108,12 +109,18 @@ async function createWindow() {
       });
 
       if (sources.length > 0) {
-        // Prioriza a tela principal inteira para garantir captura de áudio sem erro do Windows
-        const primarySource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+        // Se houver uma source selecionada pelo usuário previamente via modal
+        let chosenSource = null;
+        if (selectedDesktopSourceId) {
+          chosenSource = sources.find(s => s.id === selectedDesktopSourceId);
+        }
+        if (!chosenSource) {
+          chosenSource = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+        }
         
         callback({
-          video: primarySource,
-          audio: request.audio ? 'loopback' : undefined
+          video: chosenSource,
+          audio: 'loopback' // Captura todo o som do sistema/jogos/desktop nativamente
         });
       } else {
         callback(null);
@@ -214,6 +221,12 @@ function setupAutoUpdater() {
 // -------------------------------------------------------------------
 // IPC Handlers: Seleção visual de telas, Status de Versão e Atualização
 // -------------------------------------------------------------------
+ipcMain.handle('select-desktop-source', (_event, sourceId) => {
+  selectedDesktopSourceId = sourceId;
+  console.log('[Concord] Fonte de captura selecionada pelo usuário:', sourceId);
+  return true;
+});
+
 ipcMain.handle('get-desktop-sources', async () => {
   try {
     const sources = await desktopCapturer.getSources({

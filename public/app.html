@@ -562,6 +562,47 @@
     </div>
   </div>
 
+  <!-- Electron Screen & Window Source Picker Modal (Discord Style) -->
+  <div class="admin-modal-overlay hidden" id="desktop-picker-modal">
+    <div class="admin-modal-container desktop-picker-container">
+      <div class="admin-modal-header">
+        <div class="admin-title-wrap">
+          <div class="admin-badge-icon" style="background: rgba(88, 101, 242, 0.15); color: var(--accent-blurple);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 class="admin-title">Selecione a Tela ou Aplicativo</h2>
+            <p class="admin-subtitle">Escolha qual monitor ou janela deseja transmitir com som do sistema</p>
+          </div>
+        </div>
+        <button class="btn-close-modal" id="btn-close-picker-modal">&times;</button>
+      </div>
+
+      <div class="admin-modal-body">
+        <div class="picker-tabs-row">
+          <button class="picker-tab-btn active" id="tab-picker-screens">Telas (Monitores)</button>
+          <button class="picker-tab-btn" id="tab-picker-windows">Janelas / Jogos</button>
+        </div>
+
+        <div class="picker-sources-grid" id="picker-sources-grid">
+          <!-- Dynamically populated -->
+        </div>
+
+        <div class="picker-audio-notice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span><strong>Som do Sistema:</strong> O áudio de jogos, vídeos e sons do PC será capturado e transmitido em alta fidelidade.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Permission / Screen Share Options Modal -->
   <div class="admin-modal-overlay hidden" id="permission-modal">
     <div class="admin-modal-container permission-modal-container">

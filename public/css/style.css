@@ -2680,3 +2680,116 @@ html, body {
   gap: 10px;
 }
 
+/* -------------------------------------------------------------
+   🖥️ DESKTOP SOURCE PICKER MODAL (Discord Style)
+   ------------------------------------------------------------- */
+.desktop-picker-container {
+  max-width: 640px;
+  width: 95%;
+}
+
+.picker-tabs-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.picker-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.picker-tab-btn:hover {
+  color: var(--text-header);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.picker-tab-btn.active {
+  color: #FFFFFF;
+  background: var(--accent-blurple);
+}
+
+.picker-sources-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+
+.picker-source-item {
+  background: var(--bg-card);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+
+.picker-source-item:hover {
+  border-color: var(--accent-blurple);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.picker-source-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: #000000;
+}
+
+.picker-source-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+
+.picker-source-app-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.picker-source-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-header);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.picker-audio-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(88, 101, 242, 0.12);
+  border: 1px solid rgba(88, 101, 242, 0.3);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #DBDEE1;
+}
+
+

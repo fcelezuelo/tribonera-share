@@ -271,7 +271,7 @@ window.TriboneraWebRTC = (function () {
       const requestSystemAudio = audioConfig && audioConfig.systemAudio !== false;
       let audioActuallyCaptured = false;
 
-      // Tier 1: Try display capture with unconstrained audio (safest standard for Chrome/Edge/Electron)
+      // Prioritize System Audio Capture (Windows WASAPI / Loopback / Browser System Audio)
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -284,7 +284,8 @@ window.TriboneraWebRTC = (function () {
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
-            suppressLocalAudioPlayback: false
+            suppressLocalAudioPlayback: false,
+            channelCount: 2
           } : false,
           systemAudio: requestSystemAudio ? 'include' : 'exclude',
           selfBrowserSurface: 'exclude',
@@ -292,12 +293,12 @@ window.TriboneraWebRTC = (function () {
         });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
-          // User clicked cancel in browser popup
+          // User canceled source selection
           throw optErr;
         }
-        console.warn('Tentativa inicial com áudio avançado falhou, tentando fallback com áudio simples:', optErr);
+        console.warn('Tentativa primária com áudio avançado falhou, tentando áudio padrão:', optErr);
 
-        // Tier 2: Try standard audio: true without strict constraints
+        // Fallback: audio boolean
         try {
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
@@ -313,9 +314,9 @@ window.TriboneraWebRTC = (function () {
           if (audioErr.name === 'NotAllowedError') {
             throw audioErr;
           }
-          console.warn('Captura com áudio direto falhou (ex: janela do Windows sem driver de som), iniciando vídeo sem travar:', audioErr);
+          console.warn('Tentativa com áudio simples falhou, iniciando somente vídeo:', audioErr);
 
-          // Tier 3: Fallback to video-only so screen share NEVER fails
+          // Video-only fallback so screen share always succeeds
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
               cursor: 'always',
@@ -325,27 +326,6 @@ window.TriboneraWebRTC = (function () {
             },
             audio: false
           });
-
-          // If system audio was requested, attempt to seamlessly attach default audio device as fallback
-          if (requestSystemAudio && capturedStream) {
-            try {
-              const fallbackAudio = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  echoCancellation: false,
-                  noiseSuppression: false,
-                  autoGainControl: false
-                },
-                video: false
-              });
-              if (fallbackAudio.getAudioTracks().length > 0) {
-                const aTrack = fallbackAudio.getAudioTracks()[0];
-                capturedStream.addTrack(aTrack);
-                console.log('[WebRTC] Áudio conectado via canal de som de fallback.');
-              }
-            } catch (micFallbackErr) {
-              console.warn('[WebRTC] Áudio fallback indisponível (transmissão de vídeo iniciada):', micFallbackErr);
-            }
-          }
         }
       }
 

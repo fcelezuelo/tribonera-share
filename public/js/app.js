@@ -613,6 +613,108 @@ window.TriboneraApp = (function () {
   }
 
   // --- Screen Sharing Actions (Broadcaster) ---
+  async function handleStartShareClick() {
+    if (isCurrentlyStreaming) return;
+
+    // If running inside Electron, show the visual Screen/Window Picker (like Discord)
+    if (window.electronAPI && typeof window.electronAPI.getDesktopSources === 'function') {
+      openDesktopPickerModal();
+    } else {
+      startScreenShare();
+    }
+  }
+
+  async function openDesktopPickerModal() {
+    const pickerModal = document.getElementById('desktop-picker-modal');
+    const sourcesGrid = document.getElementById('picker-sources-grid');
+    const tabScreens = document.getElementById('tab-picker-screens');
+    const tabWindows = document.getElementById('tab-picker-windows');
+    const btnClosePicker = document.getElementById('btn-close-picker-modal');
+
+    if (!pickerModal || !sourcesGrid) {
+      startScreenShare();
+      return;
+    }
+
+    pickerModal.classList.remove('hidden');
+    sourcesGrid.innerHTML = '<div style="color:var(--text-muted); padding:20px; grid-column: 1/-1; text-align:center;">Carregando telas e janelas...</div>';
+
+    let allSources = [];
+    let currentTab = 'screens';
+
+    try {
+      allSources = await window.electronAPI.getDesktopSources();
+    } catch (err) {
+      console.error('Erro ao obter fontes do Electron:', err);
+      pickerModal.classList.add('hidden');
+      startScreenShare();
+      return;
+    }
+
+    function renderSources() {
+      sourcesGrid.innerHTML = '';
+      const filtered = allSources.filter(src => {
+        if (currentTab === 'screens') return src.id.startsWith('screen:');
+        return src.id.startsWith('window:');
+      });
+
+      if (filtered.length === 0) {
+        sourcesGrid.innerHTML = `<div style="color:var(--text-muted); padding:30px; grid-column: 1/-1; text-align:center;">Nenhuma ${currentTab === 'screens' ? 'tela extra' : 'janela'} encontrada.</div>`;
+        return;
+      }
+
+      filtered.forEach(src => {
+        const item = document.createElement('div');
+        item.className = 'picker-source-item';
+        item.innerHTML = `
+          <img class="picker-source-thumb" src="${src.thumbnail}" alt="${escapeHtml(src.name)}" />
+          <div class="picker-source-name-wrap">
+            ${src.appIcon ? `<img class="picker-source-app-icon" src="${src.appIcon}" alt="" />` : ''}
+            <span class="picker-source-title" title="${escapeHtml(src.name)}">${escapeHtml(src.name)}</span>
+          </div>
+        `;
+
+        item.addEventListener('click', async () => {
+          pickerModal.classList.add('hidden');
+          if (typeof window.electronAPI.selectDesktopSource === 'function') {
+            await window.electronAPI.selectDesktopSource(src.id);
+          }
+          startScreenShare();
+        });
+
+        sourcesGrid.appendChild(item);
+      });
+    }
+
+    if (tabScreens) {
+      tabScreens.onclick = () => {
+        currentTab = 'screens';
+        tabScreens.classList.add('active');
+        if (tabWindows) tabWindows.classList.remove('active');
+        renderSources();
+      };
+    }
+
+    if (tabWindows) {
+      tabWindows.onclick = () => {
+        currentTab = 'windows';
+        tabWindows.classList.add('active');
+        if (tabScreens) tabScreens.classList.remove('active');
+        renderSources();
+      };
+    }
+
+    if (btnClosePicker) {
+      btnClosePicker.onclick = () => pickerModal.classList.add('hidden');
+    }
+
+    pickerModal.onclick = (e) => {
+      if (e.target === pickerModal) pickerModal.classList.add('hidden');
+    };
+
+    renderSources();
+  }
+
   async function startScreenShare() {
     if (isCurrentlyStreaming) return;
 
@@ -1387,8 +1489,8 @@ window.TriboneraApp = (function () {
   }
 
   // Event Listeners
-  if (btnStartShare) btnStartShare.addEventListener('click', startScreenShare);
-  if (btnEmptyStartShare) btnEmptyStartShare.addEventListener('click', startScreenShare);
+  if (btnStartShare) btnStartShare.addEventListener('click', handleStartShareClick);
+  if (btnEmptyStartShare) btnEmptyStartShare.addEventListener('click', handleStartShareClick);
   if (btnStopShare) btnStopShare.addEventListener('click', stopScreenShare);
   if (btnStopWatching) btnStopWatching.addEventListener('click', () => leaveCurrentStream(true));
   if (btnLogout) btnLogout.addEventListener('click', logout);
