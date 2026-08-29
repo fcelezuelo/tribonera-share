@@ -1143,17 +1143,6 @@ window.TriboneraApp = (function () {
 
   // --- Video Controls ---
   function setupVideoControls() {
-    // Broadcaster Dynamic Audio Mute Toggle
-    if (btnStreamerMuteAudio) {
-      btnStreamerMuteAudio.addEventListener('click', () => {
-        if (!isCurrentlyStreaming) return;
-        const isMuted = TriboneraWebRTC.toggleStreamAudioMute();
-        updateStreamerMuteButtonUI(isMuted);
-        updateLiveAudioStatus(true, isMuted);
-        showToast(isMuted ? '🔇 Áudio da sua transmissão pausado' : '🔊 Áudio da sua transmissão ativado', 'info');
-      });
-    }
-
     // High Definition Screenshot Capture
     function handleScreenshot() {
       try {
