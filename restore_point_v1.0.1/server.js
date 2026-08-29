@@ -113,20 +113,6 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-app.get("/api/version", (req, res) => {
-  res.status(200).json({
-    name: "Concord",
-    version: "1.0.1",
-    build: "stable-1.0.1",
-    timestamp: Date.now(),
-    features: {
-      systemAudio: true,
-      webrtcMesh: true,
-      autoUpdate: true
-    }
-  });
-});
-
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });

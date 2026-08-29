@@ -477,18 +477,6 @@ window.TriboneraWebRTC = (function () {
       console.log(`[WebRTC] Streamer adicionando trilha ${track.kind} (${track.label}) ao PeerConnection para espectador ${viewerSocketId}`);
       const sender = pc.addTrack(track, localStream);
 
-      // Optimize audio sender for crystal clear system audio / games / stereo music
-      if (track.kind === 'audio' && sender && sender.getParameters) {
-        try {
-          const aParams = sender.getParameters();
-          if (!aParams.encodings || aParams.encodings.length === 0) {
-            aParams.encodings = [{}];
-          }
-          aParams.encodings[0].maxBitrate = 128000;
-          sender.setParameters(aParams).catch(e => console.warn('Audio params note:', e));
-        } catch (e) {}
-      }
-
       // Optimize video sender for high 60 FPS transmission
       if (track.kind === 'video' && sender && sender.getParameters) {
         try {
@@ -531,14 +519,10 @@ window.TriboneraWebRTC = (function () {
       }
     };
 
-    // Create SDP Offer with audio and video (Tuned for Stereo Opus System Audio)
+    // Create standard SDP Offer with audio and video
     try {
       const offer = await pc.createOffer();
-      let sdp = offer.sdp;
-      if (sdp) {
-        sdp = setOpusStereoAndBitrate(sdp);
-      }
-      await pc.setLocalDescription({ type: offer.type, sdp: sdp });
+      await pc.setLocalDescription(offer);
 
       socket.emit('webrtc:offer', {
         targetSocketId: viewerSocketId,
@@ -547,19 +531,6 @@ window.TriboneraWebRTC = (function () {
     } catch (err) {
       console.error('Erro ao criar Offer para o espectador:', err);
     }
-  }
-
-  /**
-   * Modify SDP to ensure Opus audio is stereo, 128kbps, fullband (for games, music, system audio)
-   */
-  function setOpusStereoAndBitrate(sdp) {
-    if (!sdp) return sdp;
-    return sdp.replace(/a=fmtp:(\d+)(.*)/g, (match, pt, rest) => {
-      if (rest.includes('minptime') || rest.includes('useinbandfec') || rest.includes('stereo') || rest.includes('maxaveragebitrate')) {
-        return `a=fmtp:${pt} minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=128000;cbr=1`;
-      }
-      return match;
-    });
   }
 
   /**
@@ -600,23 +571,10 @@ window.TriboneraWebRTC = (function () {
 
     // When remote track arrives, attach to video element and trigger play
     viewerPeerConnection.ontrack = (event) => {
-      console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, enabled=${event.track.enabled}`);
+      console.log(`[WebRTC] Viewer recebeu trilha: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams?.length}`);
 
       if (event.track.kind === 'audio') {
         event.track.enabled = true;
-
-        // Route to dedicated audio fallback player for 100% reliable system audio
-        const audioPlayer = document.getElementById('remote-audio-player');
-        if (audioPlayer) {
-          if (!audioPlayer.srcObject) {
-            audioPlayer.srcObject = new MediaStream([event.track]);
-          } else if (!audioPlayer.srcObject.getTracks().some(t => t.id === event.track.id)) {
-            audioPlayer.srcObject.addTrack(event.track);
-          }
-          audioPlayer.muted = false;
-          audioPlayer.volume = 1.0;
-          audioPlayer.play().catch(e => console.warn('Audio fallback player play note:', e));
-        }
       }
 
       if (remoteVideoElement) {
@@ -628,25 +586,16 @@ window.TriboneraWebRTC = (function () {
           if (!remoteVideoElement.srcObject) {
             remoteVideoElement.srcObject = new MediaStream();
           }
-          if (!remoteVideoElement.srcObject.getTracks().some(t => t.id === event.track.id)) {
-            remoteVideoElement.srcObject.addTrack(event.track);
-          }
+          remoteVideoElement.srcObject.addTrack(event.track);
         }
-
-        // Keep remote video unmuted for native sound reproduction
-        remoteVideoElement.muted = false;
-        remoteVideoElement.volume = 1.0;
 
         // Handle playback and browser autoplay restrictions
         const playPromise = remoteVideoElement.play();
         if (playPromise !== undefined) {
           playPromise.catch(err => {
-            console.warn('Autoplay com som bloqueado pelo navegador, silenciando para iniciar reprodução de vídeo:', err);
+            console.warn('Autoplay com som bloqueado pelo navegador, silenciando para iniciar reprodução:', err);
             remoteVideoElement.muted = true;
-            remoteVideoElement.play().then(() => {
-              const btnUnmute = document.getElementById('btn-unmute-prompt');
-              if (btnUnmute) btnUnmute.classList.remove('hidden');
-            }).catch(e => console.error('Falha ao reproduzir vídeo:', e));
+            remoteVideoElement.play().catch(e => console.error('Falha ao reproduzir vídeo:', e));
           });
         }
       }
@@ -685,11 +634,7 @@ window.TriboneraWebRTC = (function () {
       }
 
       const answer = await viewerPeerConnection.createAnswer();
-      let sdp = answer.sdp;
-      if (sdp) {
-        sdp = setOpusStereoAndBitrate(sdp);
-      }
-      await viewerPeerConnection.setLocalDescription({ type: answer.type, sdp: sdp });
+      await viewerPeerConnection.setLocalDescription(answer);
 
       socket.emit('webrtc:answer', {
         targetSocketId: streamerSocketId,
@@ -855,39 +800,6 @@ window.TriboneraWebRTC = (function () {
     if (remoteVideo) {
       remoteVideo.srcObject = null;
     }
-
-    const audioPlayer = document.getElementById('remote-audio-player');
-    if (audioPlayer) {
-      audioPlayer.srcObject = null;
-    }
-
-    const btnUnmute = document.getElementById('btn-unmute-prompt');
-    if (btnUnmute) {
-      btnUnmute.classList.add('hidden');
-    }
-  }
-
-  /**
-   * Explicitly unmute viewer audio (triggered by click on video or unmute badge)
-   */
-  function unmuteViewerAudio() {
-    const remoteVideo = document.getElementById('remote-video');
-    const audioPlayer = document.getElementById('remote-audio-player');
-    const btnUnmute = document.getElementById('btn-unmute-prompt');
-
-    if (remoteVideo) {
-      remoteVideo.muted = false;
-      remoteVideo.volume = 1.0;
-      remoteVideo.play().catch(e => console.warn('Unmute play video note:', e));
-    }
-    if (audioPlayer) {
-      audioPlayer.muted = false;
-      audioPlayer.volume = 1.0;
-      audioPlayer.play().catch(e => console.warn('Unmute play audio note:', e));
-    }
-    if (btnUnmute) {
-      btnUnmute.classList.add('hidden');
-    }
   }
 
   /**
@@ -980,7 +892,6 @@ window.TriboneraWebRTC = (function () {
     stopStreaming,
     stopWatching,
     toggleStreamAudioMute,
-    unmuteViewerAudio,
     captureVideoScreenshot,
     getLocalStream: () => localStream,
     isAudioMuted: () => isStreamAudioMuted,

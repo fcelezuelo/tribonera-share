@@ -212,7 +212,7 @@ function setupAutoUpdater() {
 }
 
 // -------------------------------------------------------------------
-// IPC Handlers: Seleção visual de telas, Status de Versão e Atualização
+// IPC Handlers: Seleção visual de telas / janelas e fontes de captura
 // -------------------------------------------------------------------
 ipcMain.handle('get-desktop-sources', async () => {
   try {
@@ -230,55 +230,6 @@ ipcMain.handle('get-desktop-sources', async () => {
   } catch (err) {
     console.error('Erro ao listar sources do desktop:', err);
     return [];
-  }
-});
-
-ipcMain.handle('get-app-info', () => {
-  return {
-    version: app.getVersion(),
-    isPackaged: app.isPackaged,
-    platform: process.platform,
-    remoteServerUrl: REMOTE_SERVER_URL
-  };
-});
-
-ipcMain.handle('reload-app', () => {
-  if (mainWindow) {
-    console.log('[Concord] Recarregando aplicação (ignoring cache)...');
-    mainWindow.webContents.reloadIgnoringCache();
-    return true;
-  }
-  return false;
-});
-
-ipcMain.handle('quit-and-install', () => {
-  if (autoUpdater) {
-    autoUpdater.quitAndInstall();
-    return true;
-  }
-  return false;
-});
-
-ipcMain.handle('check-for-updates', async () => {
-  if (!autoUpdater) {
-    return {
-      success: false,
-      isElectron: true,
-      message: 'Modo de desenvolvimento ou auto-updater não empacotado.'
-    };
-  }
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    return {
-      success: true,
-      updateInfo: result ? result.updateInfo : null
-    };
-  } catch (err) {
-    console.error('[Concord] Erro ao checar atualizações:', err);
-    return {
-      success: false,
-      error: err.message
-    };
   }
 });
 
