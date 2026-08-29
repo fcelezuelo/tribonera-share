@@ -10,12 +10,8 @@ window.TriboneraAdmin = (function () {
 
   const tabBtnCodes = document.getElementById('tab-btn-codes');
   const tabBtnUsers = document.getElementById('tab-btn-users');
-  const tabBtnDatabase = document.getElementById('tab-btn-database');
   const tabCodes = document.getElementById('tab-codes');
   const tabUsers = document.getElementById('tab-users');
-  const tabDatabase = document.getElementById('tab-database');
-  const supabaseSqlCode = document.getElementById('supabase-sql-code');
-  const btnCopySql = document.getElementById('btn-copy-sql');
 
   const btnGenerateCode = document.getElementById('btn-generate-code');
   const newCodeAlert = document.getElementById('new-code-alert');
@@ -37,7 +33,6 @@ window.TriboneraAdmin = (function () {
   function openAdminModal() {
     adminOverlay.classList.remove('hidden');
     loadAdminData();
-    loadSupabaseSchema();
   }
 
   function closeAdminModal() {
@@ -46,32 +41,17 @@ window.TriboneraAdmin = (function () {
 
   // Switch tabs
   function switchTab(target) {
-    [tabBtnCodes, tabBtnUsers, tabBtnDatabase].forEach(b => { if (b) b.classList.remove('active'); });
-    [tabCodes, tabUsers, tabDatabase].forEach(c => { if (c) c.classList.add('hidden'); });
-
     if (target === 'tab-codes') {
-      if (tabBtnCodes) tabBtnCodes.classList.add('active');
-      if (tabCodes) tabCodes.classList.remove('hidden');
-    } else if (target === 'tab-users') {
-      if (tabBtnUsers) tabBtnUsers.classList.add('active');
-      if (tabUsers) tabUsers.classList.remove('hidden');
-    } else if (target === 'tab-database') {
-      if (tabBtnDatabase) tabBtnDatabase.classList.add('active');
-      if (tabDatabase) tabDatabase.classList.remove('hidden');
+      tabBtnCodes.classList.add('active');
+      tabBtnUsers.classList.remove('active');
+      tabCodes.classList.remove('hidden');
+      tabUsers.classList.add('hidden');
+    } else {
+      tabBtnUsers.classList.add('active');
+      tabBtnCodes.classList.remove('active');
+      tabUsers.classList.remove('hidden');
+      tabCodes.classList.add('hidden');
     }
-  }
-
-  async function loadSupabaseSchema() {
-    const token = getToken();
-    try {
-      const res = await fetch('/api/admin/supabase-schema', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const sql = await res.text();
-        if (supabaseSqlCode) supabaseSqlCode.textContent = sql;
-      }
-    } catch (e) {}
   }
 
   // Load all admin data from server
@@ -302,19 +282,8 @@ window.TriboneraAdmin = (function () {
   if (btnCloseAdmin) btnCloseAdmin.addEventListener('click', closeAdminModal);
   if (tabBtnCodes) tabBtnCodes.addEventListener('click', () => switchTab('tab-codes'));
   if (tabBtnUsers) tabBtnUsers.addEventListener('click', () => switchTab('tab-users'));
-  if (tabBtnDatabase) tabBtnDatabase.addEventListener('click', () => switchTab('tab-database'));
   if (btnGenerateCode) btnGenerateCode.addEventListener('click', generateNewCode);
   if (btnCopyCode) btnCopyCode.addEventListener('click', copyGeneratedCode);
-  if (btnCopySql) {
-    btnCopySql.addEventListener('click', () => {
-      if (supabaseSqlCode && navigator.clipboard) {
-        navigator.clipboard.writeText(supabaseSqlCode.textContent).then(() => {
-          btnCopySql.textContent = 'Copiado para a área de transferência!';
-          setTimeout(() => { btnCopySql.textContent = 'Copiar Script SQL do Supabase'; }, 2500);
-        });
-      }
-    });
-  }
 
   return {
     open: openAdminModal,

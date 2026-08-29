@@ -25,107 +25,183 @@
         <img src="/img/concord_icon.png" alt="Concord Logo" class="brand-concord-logo">
       </div>
       <h1 class="brand-title">Concord</h1>
-      <p class="brand-subtitle">Compartilhamento de tela em tempo real com alta definição e baixa latência</p>
+      <p class="brand-subtitle">Compartilhamento de tela e streaming privado em tempo real</p>
+      
+      <!-- Supabase Status Badge -->
+      <div class="supabase-badge-wrapper" id="supabase-badge-wrapper">
+        <span class="supabase-status-pill" id="supabase-status-pill">
+          <span class="status-dot"></span>
+          <span id="supabase-status-text">Supabase Database Ativo</span>
+        </span>
+      </div>
     </div>
 
-    <!-- Step 1: Code Verification Card -->
-    <section class="auth-card" id="step-code-card">
-      <div class="card-header">
-        <h2 class="card-title">Acessar a Comunidade</h2>
-        <p class="card-desc">Digite o seu código de convite de 6 caracteres para entrar.</p>
+    <!-- Main Auth Card with Tabs -->
+    <section class="auth-card" id="main-auth-card">
+      <div class="auth-tabs-header">
+        <button type="button" class="auth-tab-btn active" id="tab-btn-login" data-tab="login">
+          <span>Entrar</span>
+        </button>
+        <button type="button" class="auth-tab-btn" id="tab-btn-register" data-tab="register">
+          <span>Registrar-se</span>
+          <span class="tab-badge">Código Adm</span>
+        </button>
       </div>
 
-      <form id="form-code" class="auth-form" autocomplete="off">
-        <div class="form-group">
-          <div class="form-label-row">
-            <label for="input-code" class="form-label">CÓDIGO DE ACESSO</label>
-            <button type="button" id="btn-clear-saved-code" class="btn-text-action hidden" title="Limpar código salvo neste dispositivo">Esquecer</button>
+      <!-- 1. LOGIN TAB -->
+      <div class="auth-tab-content" id="tab-content-login">
+        <div class="card-header">
+          <h2 class="card-title">Acessar sua Conta</h2>
+          <p class="card-desc">Entre com seu Usuário/Código e sua senha cadastrada.</p>
+        </div>
+
+        <form id="form-login" class="auth-form" autocomplete="off">
+          <div class="form-group">
+            <label for="login-identifier" class="form-label">USUÁRIO OU CÓDIGO</label>
+            <div class="input-icon-wrapper">
+              <input 
+                type="text" 
+                id="login-identifier" 
+                class="form-input" 
+                placeholder="Ex: seu_usuario ou FELLMASTER123" 
+                required 
+                autofocus
+                spellcheck="false"
+              />
+            </div>
           </div>
-          <div class="input-code-wrapper">
+
+          <div class="form-group">
+            <div class="form-label-row">
+              <label for="login-password" class="form-label">SENHA</label>
+            </div>
+            <div class="input-code-wrapper">
+              <input 
+                type="password" 
+                id="login-password" 
+                class="form-input" 
+                placeholder="Digite sua senha" 
+                required 
+              />
+              <button type="button" class="btn-toggle-visibility" id="btn-toggle-login-pass" title="Mostrar/Ocultar senha" aria-label="Mostrar ou ocultar senha">
+                <svg class="icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg class="icon-eye-closed hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="login-error-msg" class="alert-box error hidden" role="alert"></div>
+          <div id="login-success-msg" class="alert-box success hidden" role="alert"></div>
+
+          <button type="submit" id="btn-submit-login" class="btn btn-primary btn-block">
+            <span class="btn-text">Entrar</span>
+            <span class="btn-loader hidden" id="login-loader"></span>
+          </button>
+
+          <div class="auth-card-footer">
+            <p class="footer-help-text">Ainda não tem conta? <button type="button" class="btn-link" id="link-go-to-register">Registrar com código de convite</button></p>
+          </div>
+        </form>
+      </div>
+
+      <!-- 2. REGISTER TAB (Requires Admin Invite Code) -->
+      <div class="auth-tab-content hidden" id="tab-content-register">
+        <div class="card-header">
+          <div class="badge-invite-gate">EXCLUSIVO POR CONVITE</div>
+          <h2 class="card-title">Criar Nova Conta</h2>
+          <p class="card-desc">Somente usuários com código gerado pelo Administrador podem se registrar.</p>
+        </div>
+
+        <form id="form-register" class="auth-form" autocomplete="off">
+          <div class="form-group">
+            <div class="form-label-row">
+              <label for="reg-code" class="form-label">CÓDIGO DE CONVITE (DO ADMIN)</label>
+              <span class="code-badge" id="reg-code-status">6 DÍGITOS</span>
+            </div>
+            <div class="input-code-wrapper">
+              <input 
+                type="text" 
+                id="reg-code" 
+                class="form-input code-input" 
+                placeholder="Ex: XK29PL" 
+                maxlength="20" 
+                required 
+                spellcheck="false"
+              />
+            </div>
+            <p class="input-helper" id="reg-code-helper">Peça o código exclusivo ao Administrador da sala.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-nickname" class="form-label">SEU NICKNAME / USUÁRIO</label>
             <input 
-              type="password" 
-              id="input-code" 
-              class="form-input code-input" 
-              placeholder="ex: XK29PL" 
-              maxlength="20" 
+              type="text" 
+              id="reg-nickname" 
+              class="form-input" 
+              placeholder="Ex: Pedro, Biel, DarkKnight" 
+              minlength="2" 
+              maxlength="25" 
               required 
-              autofocus
               spellcheck="false"
             />
-            <button type="button" id="btn-toggle-code-visibility" class="btn-toggle-visibility" title="Mostrar/Ocultar código" aria-label="Mostrar ou ocultar código">
-              <svg class="icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              <svg class="icon-eye-closed hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-              </svg>
-            </button>
-            <span class="code-badge" id="code-badge">6 DÍGITOS</span>
+            <p class="input-helper">Entre 2 e 25 caracteres. Ficará vinculado à sua conta.</p>
           </div>
-          <div class="saved-code-hint hidden" id="saved-code-hint">
-            <svg class="icon-saved-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Código lembrado neste dispositivo</span>
+
+          <div class="form-group">
+            <label for="reg-password" class="form-label">DEFINIR SENHA</label>
+            <div class="input-code-wrapper">
+              <input 
+                type="password" 
+                id="reg-password" 
+                class="form-input" 
+                placeholder="Mínimo 4 caracteres" 
+                minlength="4" 
+                required 
+              />
+              <button type="button" class="btn-toggle-visibility" id="btn-toggle-reg-pass" title="Mostrar/Ocultar senha" aria-label="Mostrar ou ocultar senha">
+                <svg class="icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg class="icon-eye-closed hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
           </div>
-          <p class="input-helper" id="default-code-helper">Cada código é único e intransferível.</p>
-        </div>
 
-        <div id="auth-error-msg" class="alert-box error hidden" role="alert"></div>
-        <div id="auth-success-msg" class="alert-box success hidden" role="alert"></div>
+          <div class="form-group">
+            <label for="reg-confirm-password" class="form-label">CONFIRMAR SENHA</label>
+            <input 
+              type="password" 
+              id="reg-confirm-password" 
+              class="form-input" 
+              placeholder="Repita sua senha" 
+              minlength="4" 
+              required 
+            />
+          </div>
 
-        <button type="submit" id="btn-submit-code" class="btn btn-primary btn-block">
-          <span class="btn-text">Verificar Código</span>
-          <span class="btn-loader hidden" id="code-loader"></span>
-        </button>
-      </form>
-    </section>
+          <div id="reg-error-msg" class="alert-box error hidden" role="alert"></div>
+          <div id="reg-success-msg" class="alert-box success hidden" role="alert"></div>
 
-    <!-- Step 2: New User Nickname Registration Card (Shown only on first access) -->
-    <section class="auth-card hidden" id="step-nickname-card">
-      <div class="card-header">
-        <div class="badge-new-user">PRIMEIRO ACESSO</div>
-        <h2 class="card-title">Escolha seu Nickname</h2>
-        <p class="card-desc">Código válido: <strong id="display-valid-code" class="text-accent"></strong></p>
-      </div>
-
-      <div class="warning-box">
-        <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-          <line x1="12" y1="9" x2="12" y2="13"></line>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <span>Atenção: Seu nickname ficará <strong>permanentemente vinculado</strong> a este código e nunca poderá ser alterado por você.</span>
-      </div>
-
-      <form id="form-nickname" class="auth-form" autocomplete="off">
-        <div class="form-group">
-          <label for="input-nickname" class="form-label">SEU NICKNAME PERMANENTE</label>
-          <input 
-            type="text" 
-            id="input-nickname" 
-            class="form-input" 
-            placeholder="Ex: Pedro, DarkKnight, Biel" 
-            minlength="2" 
-            maxlength="25" 
-            required 
-            spellcheck="false"
-          />
-          <p class="input-helper">Entre 2 e 25 caracteres. Sem caracteres especiais proibidos.</p>
-        </div>
-
-        <div id="nick-error-msg" class="alert-box error hidden" role="alert"></div>
-
-        <div class="form-actions">
-          <button type="button" id="btn-back-code" class="btn btn-secondary">Voltar</button>
-          <button type="submit" id="btn-submit-nickname" class="btn btn-primary flex-1">
-            <span class="btn-text">Confirmar & Entrar</span>
-            <span class="btn-loader hidden" id="nick-loader"></span>
+          <button type="submit" id="btn-submit-register" class="btn btn-primary btn-block">
+            <span class="btn-text">Criar Conta & Entrar</span>
+            <span class="btn-loader hidden" id="reg-loader"></span>
           </button>
-        </div>
-      </form>
+
+          <div class="auth-card-footer">
+            <p class="footer-help-text">Já possui cadastro? <button type="button" class="btn-link" id="link-go-to-login">Fazer Login</button></p>
+          </div>
+        </form>
+      </div>
     </section>
 
     <!-- Auto-login verifying overlay -->

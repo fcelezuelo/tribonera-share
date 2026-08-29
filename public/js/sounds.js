@@ -197,75 +197,6 @@ window.TriboneraSound = (function () {
     osc.stop(now + 0.04);
   }
 
-  /**
-   * 6. 'message': Subtle Discord-like message sound
-   */
-  function playMessage() {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(659.25, now);
-    osc.frequency.setValueAtTime(880, now + 0.08);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.32);
-  }
-
-  /**
-   * 7. 'voiceJoin': Discord classic voice channel join chord
-   */
-  function playVoiceJoin() {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    const notes = [440, 554.37, 659.25];
-    notes.forEach((freq, idx) => {
-      const startTime = now + idx * 0.06;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, startTime);
-      gain.gain.setValueAtTime(0.001, startTime);
-      gain.gain.linearRampToValueAtTime(0.14, startTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(startTime);
-      osc.stop(startTime + 0.38);
-    });
-  }
-
-  /**
-   * 8. 'voiceLeave': Discord classic voice leave chord
-   */
-  function playVoiceLeave() {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    const notes = [659.25, 554.37, 440];
-    notes.forEach((freq, idx) => {
-      const startTime = now + idx * 0.06;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, startTime);
-      gain.gain.setValueAtTime(0.001, startTime);
-      gain.gain.linearRampToValueAtTime(0.12, startTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.3);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(startTime);
-      osc.stop(startTime + 0.33);
-    });
-  }
-
   function play(name) {
     if (isMuted) return;
     try {
@@ -274,9 +205,6 @@ window.TriboneraSound = (function () {
       else if (name === 'liveStart') playLiveStart();
       else if (name === 'leave') playLeave();
       else if (name === 'click') playClick();
-      else if (name === 'message') playMessage();
-      else if (name === 'voiceJoin') playVoiceJoin();
-      else if (name === 'voiceLeave') playVoiceLeave();
     } catch (err) {
       console.warn('Audio synthesis error:', err);
     }

@@ -1,13 +1,17 @@
 [
   {
     "code": "XK29PL",
-    "used": false,
-    "createdAt": 1700000000000
+    "used": true,
+    "createdAt": 1700000000000,
+    "usedBy": "Fellipe",
+    "usedAt": 1788030501808
   },
   {
     "code": "M8QZ2A",
-    "used": false,
-    "createdAt": 1700000000000
+    "used": true,
+    "createdAt": 1700000000000,
+    "usedBy": "Gabriel",
+    "usedAt": 1788030749318
   },
   {
     "code": "H71NTR",

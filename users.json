@@ -1,9 +1,35 @@
 [
   {
+    "id": "admin-fellmaster123",
     "code": "FELLMASTER123",
-    "nickname": "Fellipe",
+    "nickname": "Fellipe (Admin)",
+    "username": "admin",
+    "password_hash": "222b16d7158f2a54e893487837afc51c9e35a9ed28e191a2b23e5c4a7ae6a8fd14a95c90a130c0f7a7f589d342d78ca9c0ed58d0be5d6006fe46a94f46817b35",
+    "salt": "31c4881e4a3ff344a9abe84806ec2ddc",
     "role": "admin",
     "token": "admin-token-fellmaster123-perm",
     "createdAt": 1700000000000
+  },
+  {
+    "id": "usr_41a09865ec41bf63",
+    "code": "XK29PL",
+    "nickname": "Fellipe",
+    "username": "fellipe",
+    "password_hash": "222b16d7158f2a54e893487837afc51c9e35a9ed28e191a2b23e5c4a7ae6a8fd14a95c90a130c0f7a7f589d342d78ca9c0ed58d0be5d6006fe46a94f46817b35",
+    "salt": "31c4881e4a3ff344a9abe84806ec2ddc",
+    "role": "user",
+    "token": "tb_6e9aa77b0bf0c73e557489587129d606cbfbaceb08863c75",
+    "createdAt": 1788030501807
+  },
+  {
+    "id": "usr_3609b8c8ba34588f",
+    "code": "M8QZ2A",
+    "nickname": "Gabriel",
+    "username": "gabriel",
+    "password_hash": "dcb821086c5b21cfd9c1e0d974d092f0d8a117fbd16345761e4d9db2ba065ca00965cf1bbbcff0ec64f597addcbc73aab95f6bf8704e93bf66468315c408212c",
+    "salt": "818eeba5c07e8173ab32b2384fae556e",
+    "role": "user",
+    "token": "tb_f0d72ea0913a57f9777cd89926823d59dcc317e16ef55e89",
+    "createdAt": 1788030749317
   }
 ]

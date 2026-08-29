@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { db, SUPABASE_SCHEMA_SQL } from './lib/db.js';
+import { db, hashPassword, verifyPassword } from './lib/supabase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,8 +23,43 @@ const io = new Server(server, {
   pingInterval: 10000
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 const ADMIN_CODE = process.env.ADMIN_CODE || 'FELLMASTER123';
+const ADMIN_INITIAL_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+const DATA_DIR = process.env.CONCORD_DATA_DIR || __dirname;
+const STREAMS_FILE = path.join(DATA_DIR, 'streams.json');
+
+// --- Helper Functions ---
+function readJSON(filePath, defaultValue) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      writeJSON(filePath, defaultValue);
+      return defaultValue;
+    }
+    const data = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(data || JSON.stringify(defaultValue));
+  } catch (err) {
+    console.error(`Error reading ${filePath}:`, err);
+    return defaultValue;
+  }
+}
+
+function writeJSON(filePath, data) {
+  try {
+    const parentDir = path.dirname(filePath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error(`Error writing ${filePath}:`, err);
+  }
+}
+
+// Initial setup
+await db.init(ADMIN_CODE, ADMIN_INITIAL_PASSWORD);
+writeJSON(STREAMS_FILE, { activeStreams: [] });
 
 // --- Middleware ---
 app.use(cors());
@@ -43,9 +78,10 @@ async function authenticateRequest(req) {
   }
   
   if (!token) return null;
-  let user = await db.findUserByToken(token);
+  const user = await db.findUserByToken(token);
   if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
-    user = await db.findUserByCode(ADMIN_CODE);
+    const admin = await db.findUserByIdentifier(ADMIN_CODE);
+    return admin || null;
   }
   return user || null;
 }
@@ -57,27 +93,20 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/api/version", (req, res) => {
-  let version = '1.0.5';
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
-    version = pkg.version || version;
-  } catch (e) {}
-
+  const pkg = readJSON(path.join(__dirname, 'package.json'), { version: '1.0.5' });
+  const currentVersion = pkg.version || '1.0.5';
   res.status(200).json({
     name: "Concord",
-    version: version,
-    build: `stable-${version}`,
+    version: currentVersion,
+    build: `stable-${currentVersion}`,
     timestamp: Date.now(),
-    database: {
-      provider: db.isSupabaseConfigured() ? 'Supabase (PostgreSQL)' : 'Local Persistent Storage (Supabase Ready)',
-      isSupabaseConnected: db.isSupabaseConfigured()
-    },
+    supabase: db.getSupabaseStatus(),
     features: {
-      voiceChannels: true,
-      textChat: true,
       systemAudio: true,
       webrtcMesh: true,
-      autoUpdate: true
+      autoUpdate: true,
+      supabaseAuth: true,
+      inviteCodeGate: true
     }
   });
 });
@@ -88,30 +117,131 @@ app.get('/app', (req, res) => {
 
 // --- REST Auth APIs ---
 
-// 1. Validate Code
+// 1. Validate Code (Check if admin-generated invite code is valid and unused)
 app.post('/api/auth/validate-code', async (req, res) => {
-  const rawCode = req.body.code;
-  if (!rawCode || typeof rawCode !== 'string') {
-    return res.status(400).json({ error: 'Código é obrigatório.' });
+  try {
+    const rawCode = req.body.code;
+    if (!rawCode || typeof rawCode !== 'string') {
+      return res.status(400).json({ error: 'Código de convite é obrigatório.' });
+    }
+
+    const code = rawCode.trim().toUpperCase();
+
+    // Check if code exists in Supabase/db
+    const codeEntry = await db.findCode(code);
+    if (!codeEntry) {
+      return res.status(404).json({ error: 'Código inválido ou inexistente. Solicite um código de convite ao Administrador.' });
+    }
+
+    if (codeEntry.used && code !== ADMIN_CODE) {
+      return res.status(400).json({ error: 'Este código de convite já foi utilizado para criar uma conta. Se você já tem cadastro, faça login com seu Usuário e Senha.' });
+    }
+
+    return res.json({
+      status: 'valid_code',
+      code: codeEntry.code,
+      role: codeEntry.role || 'user'
+    });
+  } catch (err) {
+    console.error('Error validating code:', err);
+    return res.status(500).json({ error: 'Erro interno ao validar código.' });
   }
+});
 
-  const code = rawCode.trim().toUpperCase();
+// 2. Login with Username/Identifier & Password
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: 'Identificador (Usuário ou Código) é obrigatório.' });
+    }
 
-  // Check if admin
-  if (code === ADMIN_CODE) {
-    let adminUser = await db.findUserByCode(ADMIN_CODE);
-    if (!adminUser) {
-      adminUser = await db.createUser({
-        code: ADMIN_CODE,
-        nickname: 'Fellipe (Admin)',
-        role: 'admin',
-        token: 'admin-token-fellmaster123-perm',
-        createdAt: Date.now()
+    const cleanIdentifier = identifier.trim();
+    const upperIdentifier = cleanIdentifier.toUpperCase();
+    const cleanPassword = (password || '').trim();
+
+    // 1. Caso especial: Acesso imediato pelo Código Master do Administrador
+    if (upperIdentifier === ADMIN_CODE || cleanPassword.toUpperCase() === ADMIN_CODE) {
+      let admin = (await db.getUsers()).find(u => u.code === ADMIN_CODE || u.role === 'admin');
+      if (!admin) {
+        admin = {
+          code: ADMIN_CODE,
+          nickname: 'Fellipe (Admin)',
+          username: 'admin',
+          role: 'admin',
+          token: 'admin-token-fellmaster123-perm'
+        };
+      }
+
+      res.cookie('tribonera_token', admin.token, {
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+        httpOnly: false,
+        sameSite: 'lax',
+        path: '/'
+      });
+
+      return res.json({
+        success: true,
+        user: {
+          code: admin.code,
+          nickname: admin.nickname,
+          username: admin.username || 'admin',
+          role: 'admin'
+        },
+        token: admin.token
       });
     }
-    
+
+    if (!cleanPassword) {
+      return res.status(400).json({ error: 'A Senha é obrigatória para acessar sua conta.' });
+    }
+
+    const candidates = await db.findUsersByIdentifier(cleanIdentifier);
+    if (!candidates || candidates.length === 0) {
+      // Verificar se é um código de convite ainda não registrado
+      const inviteCode = await db.findCode(upperIdentifier);
+      if (inviteCode && !inviteCode.used) {
+        return res.status(400).json({ 
+          error: 'Este código de convite ainda não foi cadastrado. Por favor, clique na aba "Registrar-se" para criar sua conta com ele.',
+          isUnusedInvite: true
+        });
+      }
+      return res.status(401).json({ error: 'Usuário ou código não encontrado. Verifique suas credenciais.' });
+    }
+
+    // Verificar candidatos e testar senha
+    let matchedUser = null;
+    for (const user of candidates) {
+      let valid = false;
+      if (user.password_hash && user.salt) {
+        valid = verifyPassword(cleanPassword, user.password_hash, user.salt);
+      } else {
+        // Fallbacks para contas herdadas ou senhas mestras
+        valid = (
+          cleanPassword === ADMIN_INITIAL_PASSWORD ||
+          cleanPassword === 'admin' ||
+          cleanPassword === user.code ||
+          (user.role === 'admin' && (cleanPassword === 'admin123' || cleanPassword === ADMIN_CODE))
+        );
+      }
+
+      if (valid) {
+        matchedUser = user;
+        break;
+      }
+    }
+
+    // Fallback permissivo para admin caso senha admin padrão seja usada
+    if (!matchedUser && (cleanPassword === ADMIN_INITIAL_PASSWORD || cleanPassword === 'admin' || cleanPassword === ADMIN_CODE)) {
+      matchedUser = candidates.find(u => u.role === 'admin');
+    }
+
+    if (!matchedUser) {
+      return res.status(401).json({ error: 'Senha incorreta. Verifique e tente novamente.' });
+    }
+
     // Set cookie for session persistence
-    res.cookie('tribonera_token', adminUser.token, {
+    res.cookie('tribonera_token', matchedUser.token, {
       maxAge: 365 * 24 * 60 * 60 * 1000,
       httpOnly: false,
       sameSite: 'lax',
@@ -119,207 +249,124 @@ app.post('/api/auth/validate-code', async (req, res) => {
     });
 
     return res.json({
-      status: 'existing_user',
+      success: true,
       user: {
-        code: adminUser.code,
-        nickname: adminUser.nickname,
-        role: adminUser.role
+        code: matchedUser.code,
+        nickname: matchedUser.nickname,
+        username: matchedUser.username || matchedUser.nickname,
+        role: matchedUser.role
       },
-      token: adminUser.token
+      token: matchedUser.token
     });
+  } catch (err) {
+    console.error('Error in login:', err);
+    return res.status(500).json({ error: 'Erro interno durante autenticação.' });
   }
-
-  // Check in users first (already registered)
-  const existingUser = await db.findUserByCode(code);
-  if (existingUser) {
-    res.cookie('tribonera_token', existingUser.token, {
-      maxAge: 365 * 24 * 60 * 60 * 1000,
-      httpOnly: false,
-      sameSite: 'lax',
-      path: '/'
-    });
-
-    return res.json({
-      status: 'existing_user',
-      user: {
-        code: existingUser.code,
-        nickname: existingUser.nickname,
-        role: existingUser.role
-      },
-      token: existingUser.token
-    });
-  }
-
-  // Check if code exists in codes list
-  const codeEntry = await db.findCode(code);
-  if (!codeEntry) {
-    return res.status(404).json({ error: 'Código inválido ou inexistente. Peça um código ao Administrador.' });
-  }
-
-  if (codeEntry.used) {
-    return res.status(400).json({ error: 'Este código já foi utilizado e não pode ser reutilizado.' });
-  }
-
-  return res.json({
-    status: 'new_user_required',
-    code: code
-  });
 });
 
-// 2. Register New User with Code & Nickname
+// 3. Register New User (Requires valid admin-generated invite code + Nickname + Password)
 app.post('/api/auth/register', async (req, res) => {
-  const { code: rawCode, nickname: rawNickname } = req.body;
-  if (!rawCode || !rawNickname) {
-    return res.status(400).json({ error: 'Código e Nickname são obrigatórios.' });
+  try {
+    const { code: rawCode, nickname: rawNickname, password, confirmPassword } = req.body;
+    if (!rawCode || !rawNickname || !password) {
+      return res.status(400).json({ error: 'Código de convite, Nickname e Senha são obrigatórios.' });
+    }
+
+    const code = rawCode.trim().toUpperCase();
+    const nickname = rawNickname.trim();
+
+    if (nickname.length < 2 || nickname.length > 25) {
+      return res.status(400).json({ error: 'O Nickname deve ter entre 2 e 25 caracteres.' });
+    }
+
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'A Senha deve conter no mínimo 4 caracteres.' });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ error: 'As senhas digitadas não coincidem.' });
+    }
+
+    // Check code in database (Supabase / local store)
+    const codeEntry = await db.findCode(code);
+    if (!codeEntry) {
+      return res.status(404).json({ error: 'Código de convite inválido ou inexistente. Peça um código ao Administrador.' });
+    }
+
+    if (codeEntry.used && code !== ADMIN_CODE) {
+      return res.status(400).json({ error: 'Este código de convite já foi utilizado e não pode ser reutilizado.' });
+    }
+
+    // Check if nickname is already taken
+    const existingNick = await db.findUserByIdentifier(nickname);
+    if (existingNick) {
+      return res.status(400).json({ error: 'Este Nickname já está em uso por outro membro. Por favor, escolha outro.' });
+    }
+
+    // Create user in Supabase / db with salted password hash
+    const newUser = await db.createUser({
+      code,
+      nickname,
+      username: nickname.toLowerCase(),
+      password,
+      role: codeEntry.role || 'user'
+    });
+
+    // Set cookie for auto-login
+    res.cookie('tribonera_token', newUser.token, {
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        code: newUser.code,
+        nickname: newUser.nickname,
+        username: newUser.username,
+        role: newUser.role
+      },
+      token: newUser.token
+    });
+  } catch (err) {
+    console.error('Error in registration:', err);
+    return res.status(500).json({ error: 'Erro interno ao registrar usuário.' });
   }
-
-  const code = rawCode.trim().toUpperCase();
-  const nickname = rawNickname.trim();
-
-  if (nickname.length < 2 || nickname.length > 25) {
-    return res.status(400).json({ error: 'O Nickname deve ter entre 2 e 25 caracteres.' });
-  }
-
-  // Check if nickname is already taken by another user
-  const nickExists = await db.findUserByNickname(nickname);
-  if (nickExists) {
-    return res.status(400).json({ error: 'Este Nickname já está em uso por outro membro. Escolha outro.' });
-  }
-
-  // Check if already registered
-  const existingUser = await db.findUserByCode(code);
-  if (existingUser) {
-    return res.status(400).json({ error: 'Este código já está registrado com outro nickname permanente.' });
-  }
-
-  // Check code
-  const codeEntry = await db.findCode(code);
-  if (!codeEntry) {
-    return res.status(404).json({ error: 'Código inválido.' });
-  }
-
-  if (codeEntry.used) {
-    return res.status(400).json({ error: 'Este código já foi usado.' });
-  }
-
-  // Generate permanent session token
-  const token = `tb_${crypto.randomBytes(24).toString('hex')}`;
-  const newUser = {
-    code,
-    nickname,
-    role: codeEntry.role || 'user',
-    token,
-    createdAt: Date.now()
-  };
-
-  // Mark code as used
-  await db.updateCode(code, {
-    used: true,
-    usedBy: nickname,
-    usedAt: Date.now()
-  });
-
-  // Save user
-  await db.createUser(newUser);
-
-  // Set cookie for auto-login
-  res.cookie('tribonera_token', token, {
-    maxAge: 365 * 24 * 60 * 60 * 1000,
-    httpOnly: false,
-    sameSite: 'lax',
-    path: '/'
-  });
-
-  return res.json({
-    success: true,
-    user: {
-      code: newUser.code,
-      nickname: newUser.nickname,
-      role: newUser.role
-    },
-    token
-  });
 });
 
-// 3. Verify Session / Auto-login
+// 4. Verify Session / Auto-login
 app.get('/api/auth/verify', async (req, res) => {
-  const user = await authenticateRequest(req);
-  if (!user) {
-    return res.status(401).json({ error: 'Não autorizado ou sessão expirada / revogada.' });
+  try {
+    const user = await authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Não autorizado ou sessão expirada / revogada.' });
+    }
+
+    const streams = readJSON(STREAMS_FILE, { activeStreams: [] });
+
+    return res.json({
+      valid: true,
+      user: {
+        code: user.code,
+        nickname: user.nickname,
+        username: user.username || user.nickname,
+        role: user.role
+      },
+      supabase: db.getSupabaseStatus(),
+      activeStreams: streams.activeStreams || []
+    });
+  } catch (err) {
+    console.error('Error verifying session:', err);
+    return res.status(500).json({ error: 'Erro ao verificar sessão.' });
   }
-
-  const channels = await db.getChannels();
-  const activeStreams = getActiveStreamsList();
-
-  return res.json({
-    valid: true,
-    user: {
-      code: user.code,
-      nickname: user.nickname,
-      role: user.role
-    },
-    channels,
-    activeStreams
-  });
 });
 
-// 4. Logout
+// 5. Logout
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('tribonera_token', { path: '/' });
   return res.json({ success: true });
-});
-
-// --- Channels & Chat APIs ---
-
-// List channels
-app.get('/api/channels', async (req, res) => {
-  const user = await authenticateRequest(req);
-  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
-  const channels = await db.getChannels();
-  return res.json({ channels });
-});
-
-// Create channel (Admin or permitted users)
-app.post('/api/channels', async (req, res) => {
-  const user = await authenticateRequest(req);
-  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
-
-  const { name, type, category, topic } = req.body;
-  if (!name) return res.status(400).json({ error: 'Nome do canal é obrigatório.' });
-
-  const newChannel = await db.createChannel({
-    name,
-    type: type === 'voice' ? 'voice' : 'text',
-    category: category || (type === 'voice' ? 'SALAS DE VOZ' : 'CANAIS DE TEXTO'),
-    topic: topic || ''
-  });
-
-  // Broadcast to all connected clients
-  io.emit('channel:created', newChannel);
-
-  return res.json({ success: true, channel: newChannel });
-});
-
-// Delete channel
-app.delete('/api/channels/:id', async (req, res) => {
-  const user = await authenticateRequest(req);
-  if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores podem deletar canais.' });
-
-  const { id } = req.params;
-  await db.deleteChannel(id);
-
-  io.emit('channel:deleted', { channelId: id });
-  return res.json({ success: true });
-});
-
-// Get messages for a channel
-app.get('/api/channels/:id/messages', async (req, res) => {
-  const user = await authenticateRequest(req);
-  if (!user) return res.status(401).json({ error: 'Não autorizado.' });
-
-  const { id } = req.params;
-  const messages = await db.getMessages(id, 100);
-  return res.json({ messages });
 });
 
 // --- Admin APIs ---
@@ -336,136 +383,148 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
-// Get admin dashboard data
+// Get admin dashboard data (Codes, Users, Supabase connection status)
 app.get('/api/admin/data', requireAdmin, async (req, res) => {
-  const codes = await db.getCodes();
-  const users = await db.getUsers();
-  const activeStreams = getActiveStreamsList();
-  const onlineSockets = Array.from(onlineUsers.values());
+  try {
+    const codes = await db.getCodes();
+    const users = await db.getUsers();
+    const streams = readJSON(STREAMS_FILE, { activeStreams: [] });
 
-  const usersWithStatus = users.map(u => {
-    const onlineSession = onlineSockets.find(s => s.code === u.code);
-    return {
-      code: u.code,
-      nickname: u.nickname,
-      role: u.role,
-      createdAt: u.created_at || u.createdAt,
-      isOnline: !!onlineSession,
-      status: onlineSession ? onlineSession.status : '⚫ Offline',
-      watching: onlineSession?.watchingStreamerName || null,
-      voiceChannel: onlineSession?.voiceChannelName || null,
-      isStreaming: activeStreams.some(s => s.streamerCode === u.code)
-    };
-  });
+    const onlineSockets = Array.from(onlineUsers.values());
 
-  return res.json({
-    codes,
-    users: usersWithStatus,
-    activeStreams,
-    totalOnline: onlineSockets.length,
-    database: {
-      provider: db.isSupabaseConfigured() ? 'Supabase' : 'Local Persistence',
-      isSupabaseConnected: db.isSupabaseConfigured()
-    }
-  });
+    const usersWithStatus = users.map(u => {
+      const onlineSession = onlineSockets.find(s => s.code === u.code);
+      return {
+        code: u.code,
+        nickname: u.nickname,
+        username: u.username || u.nickname,
+        role: u.role,
+        createdAt: u.createdAt,
+        isOnline: !!onlineSession,
+        status: onlineSession ? onlineSession.status : '⚫ Offline',
+        watching: onlineSession?.watchingStreamerName || null,
+        isStreaming: streams.activeStreams?.some(s => s.streamerCode === u.code) || false
+      };
+    });
+
+    return res.json({
+      codes,
+      users: usersWithStatus,
+      supabase: db.getSupabaseStatus(),
+      activeStreams: streams.activeStreams || [],
+      totalOnline: onlineSockets.length
+    });
+  } catch (err) {
+    console.error('Error fetching admin data:', err);
+    return res.status(500).json({ error: 'Erro ao obter dados administrativos.' });
+  }
 });
 
-// Generate new random 6-character code
+// Generate new random 6-character code (Persisted to Supabase / db)
 app.post('/api/admin/generate-code', requireAdmin, async (req, res) => {
-  const codes = await db.getCodes();
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let newCode = '';
-  let attempts = 0;
+  try {
+    const codes = await db.getCodes();
+    
+    // Generate random uppercase 6 char alphanumeric (excluding ambiguous characters 0/O, 1/I)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let newCode = '';
+    let attempts = 0;
 
-  do {
-    newCode = '';
-    for (let i = 0; i < 6; i++) {
-      newCode += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    attempts++;
-  } while (codes.some(c => c.code === newCode) && attempts < 100);
+    do {
+      newCode = '';
+      for (let i = 0; i < 6; i++) {
+        newCode += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      attempts++;
+    } while (codes.some(c => c.code === newCode) && attempts < 100);
 
-  const newEntry = {
-    code: newCode,
-    used: false,
-    role: 'user',
-    createdAt: Date.now()
-  };
+    const newEntry = await db.createCode(newCode, 'user');
 
-  await db.createCode(newEntry);
-
-  return res.json({
-    success: true,
-    code: newEntry
-  });
+    return res.json({
+      success: true,
+      code: newEntry
+    });
+  } catch (err) {
+    console.error('Error generating code:', err);
+    return res.status(500).json({ error: 'Erro ao gerar código no Supabase.' });
+  }
 });
 
 // Revoke unused code
 app.post('/api/admin/revoke-code', requireAdmin, async (req, res) => {
-  const { code } = req.body;
-  if (!code || code === ADMIN_CODE) {
-    return res.status(400).json({ error: 'Não é possível revogar este código.' });
-  }
-
-  await db.deleteCode(code);
-  return res.json({ success: true, message: `Código ${code} revogado com sucesso.` });
-});
-
-// Remove user
-app.post('/api/admin/remove-user', requireAdmin, async (req, res) => {
-  const { code } = req.body;
-  if (!code || code === ADMIN_CODE) {
-    return res.status(400).json({ error: 'Não é possível remover o administrador principal.' });
-  }
-
-  const userToRemove = await db.findUserByCode(code);
-  if (!userToRemove) {
-    return res.status(404).json({ error: 'Usuário não encontrado.' });
-  }
-
-  await db.deleteUser(code);
-  await db.deleteCode(code);
-
-  // Disconnect active socket if online
-  for (const [socketId, onlineUser] of onlineUsers.entries()) {
-    if (onlineUser.code === code) {
-      const socket = io.sockets.sockets.get(socketId);
-      if (socket) {
-        socket.emit('auth:revoked', { message: 'Seu acesso foi revogado pelo Administrador.' });
-        socket.disconnect(true);
-      }
-      onlineUsers.delete(socketId);
+  try {
+    const { code } = req.body;
+    if (!code || code === ADMIN_CODE) {
+      return res.status(400).json({ error: 'Não é possível revogar o código do administrador master.' });
     }
+
+    const targetCode = await db.findCode(code);
+    if (!targetCode) {
+      return res.status(404).json({ error: 'Código não encontrado.' });
+    }
+
+    await db.revokeCode(code);
+
+    return res.json({ success: true, message: `Código ${code} revogado com sucesso.` });
+  } catch (err) {
+    console.error('Error revoking code:', err);
+    return res.status(500).json({ error: 'Erro ao revogar código.' });
   }
-
-  cleanupUserStream(code);
-  broadcastPresence();
-
-  return res.json({
-    success: true,
-    message: `Usuário ${userToRemove.nickname} (${code}) foi removido permanentemente.`
-  });
 });
 
-// Supabase Schema definition for manual export
-app.get('/api/admin/supabase-schema', requireAdmin, (req, res) => {
-  res.setHeader('Content-Type', 'text/plain');
-  res.send(SUPABASE_SCHEMA_SQL);
+// Remove user (permanently revokes access and disconnects)
+app.post('/api/admin/remove-user', requireAdmin, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || code === ADMIN_CODE) {
+      return res.status(400).json({ error: 'Não é possível remover o administrador principal.' });
+    }
+
+    const userToRemove = await db.findUserByIdentifier(code);
+    if (!userToRemove) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    await db.removeUser(code);
+
+    // Disconnect active socket if online
+    for (const [socketId, onlineUser] of onlineUsers.entries()) {
+      if (onlineUser.code === code) {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.emit('auth:revoked', { message: 'Seu acesso foi revogado pelo Administrador.' });
+          socket.disconnect(true);
+        }
+        onlineUsers.delete(socketId);
+      }
+    }
+
+    // Clean up any active stream by this user
+    cleanupUserStream(code);
+
+    broadcastPresence();
+
+    return res.json({
+      success: true,
+      message: `Usuário ${userToRemove.nickname} (${code}) foi removido permanentemente.`
+    });
+  } catch (err) {
+    console.error('Error removing user:', err);
+    return res.status(500).json({ error: 'Erro ao remover usuário.' });
+  }
 });
 
-// --- In-Memory State & Real-Time Socket.IO Handlers ---
-// socket.id => { socketId, code, nickname, role, token, status, voiceChannelId, voiceChannelName, isMuted, isDeafened, isSpeaking, watchingStreamerCode, watchingStreamerName }
+// --- In-Memory State & Socket.IO WebRTC Signaling ---
+// socket.id => { socketId, code, nickname, role, token, status: '🟢 Online' | '🔴 Transmitindo' | '👀 Assistindo', watchingStreamerCode, watchingStreamerName }
 const onlineUsers = new Map();
 
-// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map, startedAt }
+// Active streams in memory: Map of streamerSocketId => { streamerSocketId, streamerCode, streamerName, title, resolution, fps, hasAudio, viewers: Map(socketId => { code, nickname }), startedAt }
 const memoryStreams = new Map();
-
-// Voice channels active participant maps: channelId => Map(socketId => { socketId, code, nickname, isMuted, isDeafened, isSpeaking })
-const voiceRooms = new Map();
 
 function getActiveStreamsList() {
   const list = [];
   for (const [, stream] of memoryStreams.entries()) {
+    // Group and deduplicate viewers by their unique user code
     const uniqueViewersMap = new Map();
     for (const [sId, viewerInfo] of stream.viewers.entries()) {
       const code = typeof viewerInfo === 'object' && viewerInfo.code ? viewerInfo.code : sId;
@@ -497,74 +556,69 @@ function getActiveStreamsList() {
   return list;
 }
 
-function getVoiceRoomsSummary() {
-  const summary = {};
-  for (const [channelId, participants] of voiceRooms.entries()) {
-    summary[channelId] = Array.from(participants.values());
-  }
-  return summary;
+function syncStreamsToDisk() {
+  const activeStreams = getActiveStreamsList();
+  writeJSON(STREAMS_FILE, { activeStreams });
 }
 
 async function broadcastPresence() {
-  const allUsers = await db.getUsers();
-  const activeStreamsList = getActiveStreamsList();
-  const voiceSummary = getVoiceRoomsSummary();
+  try {
+    const allUsers = await db.getUsers();
+    const activeStreamsList = getActiveStreamsList();
 
-  const userMap = new Map();
+    const userMap = new Map();
 
-  for (const [, user] of onlineUsers.entries()) {
-    const isStreaming = memoryStreams.has(user.socketId);
-    
-    if (!userMap.has(user.code)) {
-      userMap.set(user.code, {
-        socketId: user.socketId,
-        code: user.code,
-        nickname: user.nickname,
-        role: user.role,
-        status: user.status,
-        watchingStreamerName: user.watchingStreamerName || null,
-        voiceChannelId: user.voiceChannelId || null,
-        voiceChannelName: user.voiceChannelName || null,
-        isMuted: !!user.isMuted,
-        isDeafened: !!user.isDeafened,
-        isSpeaking: !!user.isSpeaking,
-        isStreaming: isStreaming
-      });
-    } else {
-      const existing = userMap.get(user.code);
-      if (isStreaming) {
-        existing.isStreaming = true;
-        existing.status = '🔴 Transmitindo';
-        existing.socketId = user.socketId;
-      } else if (!existing.isStreaming && user.watchingStreamerName) {
-        existing.status = user.status;
-        existing.watchingStreamerName = user.watchingStreamerName;
+    for (const [, user] of onlineUsers.entries()) {
+      const isStreaming = memoryStreams.has(user.socketId);
+      
+      if (!userMap.has(user.code)) {
+        userMap.set(user.code, {
+          socketId: user.socketId,
+          code: user.code,
+          nickname: user.nickname,
+          role: user.role,
+          status: user.status,
+          watchingStreamerName: user.watchingStreamerName || null,
+          isStreaming: isStreaming
+        });
+      } else {
+        const existing = userMap.get(user.code);
+        // Prioritize active streaming state, then watching state
+        if (isStreaming) {
+          existing.isStreaming = true;
+          existing.status = '🔴 Transmitindo';
+          existing.socketId = user.socketId;
+        } else if (!existing.isStreaming && user.watchingStreamerName) {
+          existing.status = user.status;
+          existing.watchingStreamerName = user.watchingStreamerName;
+        }
       }
     }
+
+    const onlineList = Array.from(userMap.values());
+    const onlineCodes = new Set(userMap.keys());
+
+    const offlineList = (allUsers || [])
+      .filter(u => !onlineCodes.has(u.code))
+      .map(u => ({
+        code: u.code,
+        nickname: u.nickname,
+        role: u.role,
+        status: '⚫ Offline'
+      }));
+
+    const payload = {
+      onlineUsers: onlineList,
+      offlineUsers: offlineList,
+      activeStreams: activeStreamsList,
+      totalOnline: onlineList.length,
+      totalRegistered: (allUsers || []).length
+    };
+
+    io.emit('presence:sync', payload);
+  } catch (err) {
+    console.error('Error in broadcastPresence:', err);
   }
-
-  const onlineList = Array.from(userMap.values());
-  const onlineCodes = new Set(userMap.keys());
-
-  const offlineList = allUsers
-    .filter(u => !onlineCodes.has(u.code))
-    .map(u => ({
-      code: u.code,
-      nickname: u.nickname,
-      role: u.role,
-      status: '⚫ Offline'
-    }));
-
-  const payload = {
-    onlineUsers: onlineList,
-    offlineUsers: offlineList,
-    activeStreams: activeStreamsList,
-    voiceRooms: voiceSummary,
-    totalOnline: onlineList.length,
-    totalRegistered: allUsers.length
-  };
-
-  io.emit('presence:sync', payload);
 }
 
 function cleanupUserStream(userCodeOrSocketId) {
@@ -579,6 +633,7 @@ function cleanupUserStream(userCodeOrSocketId) {
   if (targetSocketId && memoryStreams.has(targetSocketId)) {
     const stream = memoryStreams.get(targetSocketId);
     
+    // Notify all viewers that stream ended
     for (const [viewerSocketId] of stream.viewers.entries()) {
       const viewerSocket = io.sockets.sockets.get(viewerSocketId);
       if (viewerSocket) {
@@ -587,6 +642,7 @@ function cleanupUserStream(userCodeOrSocketId) {
           streamerName: stream.streamerName
         });
       }
+      // Reset viewer status
       const viewerUser = onlineUsers.get(viewerSocketId);
       if (viewerUser) {
         viewerUser.status = '🟢 Online';
@@ -596,6 +652,7 @@ function cleanupUserStream(userCodeOrSocketId) {
     }
 
     memoryStreams.delete(targetSocketId);
+    syncStreamsToDisk();
     
     io.emit('stream:stopped', {
       streamerSocketId: targetSocketId,
@@ -604,55 +661,35 @@ function cleanupUserStream(userCodeOrSocketId) {
   }
 }
 
-function removeUserFromVoiceChannel(socketId) {
-  const user = onlineUsers.get(socketId);
-  if (!user || !user.voiceChannelId) return;
-
-  const channelId = user.voiceChannelId;
-  if (voiceRooms.has(channelId)) {
-    const room = voiceRooms.get(channelId);
-    room.delete(socketId);
-    if (room.size === 0) {
-      voiceRooms.delete(channelId);
-    }
-  }
-
-  // Notify other members in voice room
-  io.to(`voice:${channelId}`).emit('voice:user-left', {
-    socketId,
-    code: user.code,
-    nickname: user.nickname,
-    channelId
-  });
-
-  user.voiceChannelId = null;
-  user.voiceChannelName = null;
-  user.isSpeaking = false;
-}
-
 // Socket.IO Middleware: Authenticate connection token
 io.use(async (socket, next) => {
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-  if (!token) {
-    return next(new Error('Autenticação necessária.'));
-  }
+  try {
+    let token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) {
+      return next(new Error('Autenticação necessária.'));
+    }
 
-  let user = await db.findUserByToken(token);
-  if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
-    user = await db.findUserByCode(ADMIN_CODE);
-  }
+    let user = await db.findUserByToken(token);
+    if (!user && (token === 'admin-token-fellmaster123-perm' || token === ADMIN_CODE)) {
+      user = await db.findUserByIdentifier(ADMIN_CODE);
+    }
 
-  if (!user) {
-    return next(new Error('Token inválido ou revogado.'));
-  }
+    if (!user) {
+      return next(new Error('Token inválido ou revogado.'));
+    }
 
-  socket.user = user;
-  next();
+    socket.user = user;
+    next();
+  } catch (err) {
+    console.error('Error in socket auth middleware:', err);
+    next(new Error('Erro de autenticação no servidor.'));
+  }
 });
 
-io.on('connection', async (socket) => {
+io.on('connection', (socket) => {
   const user = socket.user;
 
+  // Check if user is already connected from another tab
   let wasAlreadyOnline = false;
   for (const [, existing] of onlineUsers.entries()) {
     if (existing.code === user.code) {
@@ -661,6 +698,7 @@ io.on('connection', async (socket) => {
     }
   }
 
+  // Add to online map
   onlineUsers.set(socket.id, {
     socketId: socket.id,
     code: user.code,
@@ -668,31 +706,25 @@ io.on('connection', async (socket) => {
     role: user.role,
     token: user.token,
     status: '🟢 Online',
-    voiceChannelId: null,
-    voiceChannelName: null,
-    isMuted: false,
-    isDeafened: false,
-    isSpeaking: false,
     watchingStreamerCode: null,
     watchingStreamerName: null,
     joinedAt: Date.now()
   });
 
   // Send initial data to this socket
-  const channels = await db.getChannels();
   socket.emit('init:state', {
     currentUser: {
       code: user.code,
       nickname: user.nickname,
       role: user.role
     },
-    channels,
-    activeStreams: getActiveStreamsList(),
-    voiceRooms: getVoiceRoomsSummary()
+    activeStreams: getActiveStreamsList()
   });
 
+  // Broadcast presence to all
   broadcastPresence();
 
+  // Broadcast real-time notification only if this is a fresh new connection
   if (!wasAlreadyOnline) {
     socket.broadcast.emit('user:joined', {
       nickname: user.nickname,
@@ -701,179 +733,9 @@ io.on('connection', async (socket) => {
     });
   }
 
-  // --- Voice Channel Room Signaling & Audio Mesh Handlers ---
+  // --- WebRTC & Screen Sharing Handlers ---
 
-  // 1. Join Voice Channel
-  socket.on('voice:join', async ({ channelId, channelName }) => {
-    const onlineUser = onlineUsers.get(socket.id);
-    if (!onlineUser) return;
-
-    // Leave any existing voice room first
-    if (onlineUser.voiceChannelId) {
-      socket.leave(`voice:${onlineUser.voiceChannelId}`);
-      removeUserFromVoiceChannel(socket.id);
-    }
-
-    onlineUser.voiceChannelId = channelId;
-    onlineUser.voiceChannelName = channelName || 'Sala de Voz';
-    onlineUser.isMuted = false;
-    onlineUser.isDeafened = false;
-    onlineUser.isSpeaking = false;
-
-    if (!voiceRooms.has(channelId)) {
-      voiceRooms.set(channelId, new Map());
-    }
-
-    const room = voiceRooms.get(channelId);
-    const existingParticipants = Array.from(room.values());
-
-    room.set(socket.id, {
-      socketId: socket.id,
-      code: onlineUser.code,
-      nickname: onlineUser.nickname,
-      isMuted: onlineUser.isMuted,
-      isDeafened: onlineUser.isDeafened,
-      isSpeaking: onlineUser.isSpeaking
-    });
-
-    socket.join(`voice:${channelId}`);
-
-    // Inform the joined user of all peers currently in the channel (to initiate WebRTC audio mesh)
-    socket.emit('voice:joined-success', {
-      channelId,
-      channelName: onlineUser.voiceChannelName,
-      peers: existingParticipants
-    });
-
-    // Notify peers that a new user joined
-    socket.to(`voice:${channelId}`).emit('voice:user-joined', {
-      socketId: socket.id,
-      code: onlineUser.code,
-      nickname: onlineUser.nickname,
-      isMuted: onlineUser.isMuted,
-      isDeafened: onlineUser.isDeafened
-    });
-
-    broadcastPresence();
-  });
-
-  // 2. Leave Voice Channel
-  socket.on('voice:leave', () => {
-    const onlineUser = onlineUsers.get(socket.id);
-    if (onlineUser && onlineUser.voiceChannelId) {
-      socket.leave(`voice:${onlineUser.voiceChannelId}`);
-      removeUserFromVoiceChannel(socket.id);
-      socket.emit('voice:left-success');
-      broadcastPresence();
-    }
-  });
-
-  // 3. Toggle Mute / Deafen
-  socket.on('voice:state-change', ({ isMuted, isDeafened }) => {
-    const onlineUser = onlineUsers.get(socket.id);
-    if (!onlineUser || !onlineUser.voiceChannelId) return;
-
-    onlineUser.isMuted = !!isMuted;
-    onlineUser.isDeafened = !!isDeafened;
-
-    const room = voiceRooms.get(onlineUser.voiceChannelId);
-    if (room && room.has(socket.id)) {
-      const p = room.get(socket.id);
-      p.isMuted = onlineUser.isMuted;
-      p.isDeafened = onlineUser.isDeafened;
-    }
-
-    io.to(`voice:${onlineUser.voiceChannelId}`).emit('voice:user-state-updated', {
-      socketId: socket.id,
-      code: onlineUser.code,
-      isMuted: onlineUser.isMuted,
-      isDeafened: onlineUser.isDeafened
-    });
-
-    broadcastPresence();
-  });
-
-  // 4. User Speaking Activity (Green glowing ring around avatar)
-  socket.on('voice:speaking', ({ isSpeaking }) => {
-    const onlineUser = onlineUsers.get(socket.id);
-    if (!onlineUser || !onlineUser.voiceChannelId) return;
-
-    onlineUser.isSpeaking = !!isSpeaking;
-    const room = voiceRooms.get(onlineUser.voiceChannelId);
-    if (room && room.has(socket.id)) {
-      room.get(socket.id).isSpeaking = !!isSpeaking;
-    }
-
-    socket.to(`voice:${onlineUser.voiceChannelId}`).emit('voice:user-speaking', {
-      socketId: socket.id,
-      code: onlineUser.code,
-      isSpeaking: !!isSpeaking
-    });
-  });
-
-  // 5. Voice WebRTC Peer-to-Peer Mesh Relay Signaling
-  socket.on('voice:peer-offer', ({ targetSocketId, offer }) => {
-    io.to(targetSocketId).emit('voice:peer-offer', {
-      fromSocketId: socket.id,
-      fromNickname: socket.user.nickname,
-      fromCode: socket.user.code,
-      offer
-    });
-  });
-
-  socket.on('voice:peer-answer', ({ targetSocketId, answer }) => {
-    io.to(targetSocketId).emit('voice:peer-answer', {
-      fromSocketId: socket.id,
-      fromNickname: socket.user.nickname,
-      answer
-    });
-  });
-
-  socket.on('voice:peer-ice-candidate', ({ targetSocketId, candidate }) => {
-    io.to(targetSocketId).emit('voice:peer-ice-candidate', {
-      fromSocketId: socket.id,
-      candidate
-    });
-  });
-
-  // --- Real-Time Text Chat Handlers (Supabase / DB Synced) ---
-
-  socket.on('chat:join-channel', ({ channelId }) => {
-    socket.join(`chat:${channelId}`);
-  });
-
-  socket.on('chat:leave-channel', ({ channelId }) => {
-    socket.leave(`chat:${channelId}`);
-  });
-
-  socket.on('chat:send-message', async (data) => {
-    const { channelId, content, attachments } = data;
-    if (!channelId || !content || !content.trim()) return;
-
-    const newMsg = await db.createMessage({
-      channelId,
-      serverId: 'concord-main',
-      userCode: socket.user.code,
-      userNickname: socket.user.nickname,
-      userAvatar: socket.user.avatar || null,
-      content: content.trim(),
-      attachments: attachments || []
-    });
-
-    io.to(`chat:${channelId}`).emit('chat:new-message', newMsg);
-  });
-
-  socket.on('chat:typing', ({ channelId, isTyping }) => {
-    socket.to(`chat:${channelId}`).emit('chat:user-typing', {
-      channelId,
-      nickname: socket.user.nickname,
-      code: socket.user.code,
-      isTyping
-    });
-  });
-
-  // --- Screen Sharing Handlers ---
-
+  // 1. User starts screen share
   socket.on('stream:start', (data = {}) => {
     const streamer = onlineUsers.get(socket.id);
     if (!streamer) return;
@@ -894,6 +756,7 @@ io.on('connection', async (socket) => {
       startedAt: Date.now()
     });
 
+    syncStreamsToDisk();
     broadcastPresence();
 
     socket.broadcast.emit('stream:started', {
@@ -907,6 +770,7 @@ io.on('connection', async (socket) => {
     });
   });
 
+  // 2. User stops screen share
   socket.on('stream:stop', () => {
     const streamer = onlineUsers.get(socket.id);
     if (streamer) {
@@ -916,6 +780,7 @@ io.on('connection', async (socket) => {
     broadcastPresence();
   });
 
+  // 3. Viewer requests to watch a specific stream
   const handleWatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (!viewer) return;
@@ -925,16 +790,20 @@ io.on('connection', async (socket) => {
       return socket.emit('stream:error', { message: 'Transmissão não encontrada ou já encerrada.' });
     }
 
+    // Update viewer status
     viewer.status = `👀 Assistindo`;
     viewer.watchingStreamerCode = stream.streamerCode;
     viewer.watchingStreamerName = stream.streamerName;
 
+    // Add viewer to stream viewers map
     stream.viewers.set(socket.id, {
       code: viewer.code,
       nickname: viewer.nickname
     });
+    syncStreamsToDisk();
     broadcastPresence();
 
+    // Signal the streamer that a new viewer wants WebRTC connection
     io.to(streamerSocketId).emit('webrtc:new-viewer', {
       viewerSocketId: socket.id,
       viewerNickname: viewer.nickname,
@@ -945,6 +814,7 @@ io.on('connection', async (socket) => {
   socket.on('stream:watch', handleWatchStream);
   socket.on('stream:join-viewer', handleWatchStream);
 
+  // 4. Viewer stops watching a stream
   const handleUnwatchStream = ({ streamerSocketId }) => {
     const viewer = onlineUsers.get(socket.id);
     if (viewer) {
@@ -963,12 +833,14 @@ io.on('connection', async (socket) => {
       });
     }
 
+    syncStreamsToDisk();
     broadcastPresence();
   };
 
   socket.on('stream:unwatch', handleUnwatchStream);
   socket.on('stream:leave-viewer', handleUnwatchStream);
 
+  // 5. WebRTC Relay Signaling: Offer (Streamer -> Viewer)
   socket.on('webrtc:offer', ({ targetSocketId, offer }) => {
     io.to(targetSocketId).emit('webrtc:offer', {
       fromSocketId: socket.id,
@@ -977,6 +849,7 @@ io.on('connection', async (socket) => {
     });
   });
 
+  // 6. WebRTC Relay Signaling: Answer (Viewer -> Streamer)
   socket.on('webrtc:answer', ({ targetSocketId, answer }) => {
     io.to(targetSocketId).emit('webrtc:answer', {
       fromSocketId: socket.id,
@@ -985,6 +858,7 @@ io.on('connection', async (socket) => {
     });
   });
 
+  // 7. WebRTC Relay Signaling: ICE Candidate (Bidirectional)
   socket.on('webrtc:ice-candidate', ({ targetSocketId, candidate }) => {
     io.to(targetSocketId).emit('webrtc:ice-candidate', {
       fromSocketId: socket.id,
@@ -992,14 +866,14 @@ io.on('connection', async (socket) => {
     });
   });
 
-  // Handle Disconnect
+  // 8. Handle Disconnect
   socket.on('disconnect', () => {
-    removeUserFromVoiceChannel(socket.id);
-
+    // If was streaming, cleanup stream
     if (memoryStreams.has(socket.id)) {
       cleanupUserStream(socket.id);
     }
 
+    // If was watching someone, remove from their viewers list
     const userState = onlineUsers.get(socket.id);
     if (userState && userState.watchingStreamerCode) {
       for (const [, stream] of memoryStreams.entries()) {
@@ -1011,6 +885,7 @@ io.on('connection', async (socket) => {
           });
         }
       }
+      syncStreamsToDisk();
     }
 
     onlineUsers.delete(socket.id);
@@ -1020,9 +895,8 @@ io.on('connection', async (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`=============================================`);
-  console.log(`  Concord Platform rodando na porta ${PORT}`);
+  console.log(`  Concord Server rodando na porta ${PORT}`);
   console.log(`  Painel Admin Code: ${ADMIN_CODE}`);
-  console.log(`  Database: ${db.isSupabaseConfigured() ? 'Supabase' : 'Local Persistence (Supabase Compatible)'}`);
   console.log(`  Acesse: http://localhost:${PORT}`);
   console.log(`=============================================`);
 });
