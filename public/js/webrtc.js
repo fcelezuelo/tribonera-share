@@ -272,8 +272,6 @@ window.TriboneraWebRTC = (function () {
       let audioActuallyCaptured = false;
 
       // Prioritize System Audio Capture (Windows WASAPI / Loopback / Browser System Audio)
-      const isElectronEnv = !!(window.electronAPI && window.electronAPI.isElectron);
-
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -282,10 +280,13 @@ window.TriboneraWebRTC = (function () {
             height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
             frameRate: { ideal: frameRate, max: frameRate }
           },
-          audio: requestSystemAudio ? true : false,
-          systemAudio: requestSystemAudio ? 'include' : 'exclude',
-          selfBrowserSurface: 'exclude',
-          surfaceSwitching: 'include'
+          audio: requestSystemAudio ? {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            suppressLocalAudioPlayback: false
+          } : false,
+          systemAudio: requestSystemAudio ? 'include' : 'exclude'
         });
       } catch (optErr) {
         if (optErr.name === 'NotAllowedError') {
@@ -308,7 +309,7 @@ window.TriboneraWebRTC = (function () {
           if (audioErr.name === 'NotAllowedError') {
             throw audioErr;
           }
-          console.warn('Tentativa com áudio simples falhou, iniciando somente vídeo:', audioErr);
+          console.warn('Tentativa com áudio falhou, iniciando somente vídeo:', audioErr);
 
           // Video-only fallback so screen share always succeeds
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
@@ -325,29 +326,6 @@ window.TriboneraWebRTC = (function () {
 
       if (!capturedStream) {
         throw new Error('Não foi possível obter o stream de tela.');
-      }
-
-      // If in Electron and audio track is missing, attach system loopback directly via getUserMedia desktop
-      if (isElectronEnv && requestSystemAudio && capturedStream.getAudioTracks().length === 0) {
-        try {
-          const loopbackStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              mandatory: {
-                chromeMediaSource: 'desktop'
-              }
-            },
-            video: false
-          });
-          if (loopbackStream && loopbackStream.getAudioTracks().length > 0) {
-            loopbackStream.getAudioTracks().forEach(t => {
-              t.enabled = true;
-              capturedStream.addTrack(t);
-            });
-            console.log('[WebRTC Electron] Áudio loopback do sistema (WASAPI) anexado com sucesso via desktop audio source!');
-          }
-        } catch (e) {
-          console.warn('[WebRTC Electron] getUserMedia loopback note:', e);
-        }
       }
 
       audioActuallyCaptured = capturedStream.getAudioTracks().length > 0;

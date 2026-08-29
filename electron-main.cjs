@@ -3,12 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
-// Configuração de linha de comando do Chromium para captura de áudio WASAPI Loopback & tela
+// Configuração de linha de comando do Chromium para captura de tela e áudio
 app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
 app.commandLine.appendSwitch('allow-http-screen-capture');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('enable-features', 'AudioServiceOutOfProcess,WebRTCPipeWireCapturer');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
 
 let autoUpdater = null;
 try {
@@ -110,12 +109,11 @@ async function createWindow() {
     try {
       const sources = await desktopCapturer.getSources({
         types: ['screen', 'window'],
-        thumbnailSize: { width: 320, height: 180 },
-        fetchWindowIcons: true
+        thumbnailSize: { width: 160, height: 90 },
+        fetchWindowIcons: false
       });
 
-      if (sources.length > 0) {
-        // Se houver uma source selecionada pelo usuário previamente via modal
+      if (sources && sources.length > 0) {
         let chosenSource = null;
         if (selectedDesktopSourceId) {
           chosenSource = sources.find(s => s.id === selectedDesktopSourceId);
@@ -126,7 +124,7 @@ async function createWindow() {
         
         callback({
           video: chosenSource,
-          audio: 'loopback' // Captura todo o som do sistema/jogos/desktop nativamente
+          audio: request.audioRequested ? 'loopback' : undefined
         });
       } else {
         callback(null);

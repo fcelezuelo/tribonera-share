@@ -763,9 +763,18 @@ window.TriboneraApp = (function () {
     footerUserStatus.textContent = '🔴 Transmitindo';
 
     // Show local preview
+    localPreviewVideo.muted = true;
+    localPreviewVideo.playsInline = true;
     localPreviewVideo.srcObject = result.stream;
     localPreviewVideo.classList.remove('hidden');
-    localPreviewVideo.play().catch(err => console.warn('Erro ao reproduzir preview local:', err));
+    try {
+      const playPromise = localPreviewVideo.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => console.warn('Erro ao reproduzir preview local:', err));
+      }
+    } catch (e) {
+      console.warn('Erro play preview local:', e);
+    }
     remoteVideo.classList.add('hidden');
     emptyStageState.classList.add('hidden');
     videoHeaderBar.classList.remove('hidden');
