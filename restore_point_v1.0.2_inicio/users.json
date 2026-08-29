@@ -1,0 +1,16 @@
+[
+  {
+    "code": "FELLMASTER123",
+    "nickname": "Fellipe",
+    "role": "admin",
+    "token": "admin-token-fellmaster123-perm",
+    "createdAt": 1700000000000
+  },
+  {
+    "code": "xk29pl",
+    "nickname": "test",
+    "role": "admin",
+    "token": "",
+    "createdAt": 1700000000000
+  }
+]

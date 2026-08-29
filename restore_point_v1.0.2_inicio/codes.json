@@ -1,0 +1,28 @@
+[
+  {
+    "code": "XK29PL",
+    "used": false,
+    "createdAt": 1700000000000
+  },
+  {
+    "code": "M8QZ2A",
+    "used": false,
+    "createdAt": 1700000000000
+  },
+  {
+    "code": "H71NTR",
+    "used": false,
+    "createdAt": 1700000000000
+  },
+  {
+    "code": "TRIBO24",
+    "used": false,
+    "createdAt": 1700000000000
+  },
+  {
+    "code": "FELLMASTER123",
+    "used": true,
+    "role": "admin",
+    "createdAt": 1700000000000
+  }
+]

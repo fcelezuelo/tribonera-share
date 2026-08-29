@@ -147,15 +147,6 @@
             <span class="stream-timer" id="my-stream-timer">00:00</span>
             <span class="stream-specs" id="my-stream-specs">1080p @ 60 FPS</span>
           </div>
-          <div class="streaming-quick-actions">
-            <button id="btn-sidebar-mute-audio" class="btn-streamer-audio-pill" title="Mutar ou desmutar transmissão de áudio">
-              <svg id="sidebar-audio-icon" class="audio-pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              </svg>
-              <span id="sidebar-audio-status-label">Som Ativo</span>
-            </button>
-          </div>
           <button id="btn-stop-share" class="btn btn-danger btn-block">
             <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="6" y="6" width="12" height="12" rx="2"></rect>
@@ -186,7 +177,7 @@
         <div class="footer-controls">
           <button class="btn-version-badge" id="btn-version-badge" title="Informações da Versão e Atualizações">
             <span class="version-dot" id="version-status-dot"></span>
-            <span id="display-app-version">v1.0.2</span>
+            <span id="display-app-version">v1.0.1</span>
           </button>
         </div>
       </div>
@@ -231,37 +222,29 @@
           </div>
 
           <div class="stage-top-actions">
-            <!-- Broadcaster Controls (Only visible when user is streaming) -->
-            <div class="broadcaster-header-actions hidden" id="broadcaster-header-actions">
-              <button id="btn-streamer-mute-audio" class="btn-discord-audio-toggle" title="Mutar ou desmutar som da transmissão">
-                <svg id="icon-streamer-audio-state" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                </svg>
-                <span id="streamer-audio-toggle-label">Som Ativo</span>
-              </button>
-              <button id="btn-header-stop-share" class="btn-leave-stream" title="Encerrar Transmissão">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-                </svg>
-                <span>Encerrar Transmissão</span>
-              </button>
-            </div>
-
-            <!-- Viewer Controls (Only visible when watching someone else) -->
-            <button id="btn-stop-watching" class="btn-leave-stream hidden" title="Parar de Assistir">
+            <!-- Broadcaster Quick Mute/Unmute audio button -->
+            <button id="btn-streamer-mute-audio" class="btn-stage-icon streamer-audio-toggle hidden" title="Mutar / Desmutar Transmissão de Áudio">
+              <svg id="icon-streamer-audio-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+              <svg id="icon-streamer-audio-off" class="hidden text-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </button>
+            <button id="btn-stats-toggle" class="btn-stage-icon" title="Estatísticas de Conexão WebRTC">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 20V10M12 20V4M6 20v-6"></path>
+              </svg>
+            </button>
+            <button id="btn-stop-watching" class="btn-leave-stream" title="Parar de Assistir">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
               <span>Sair da Transmissão</span>
-            </button>
-
-            <!-- WebRTC Connection Diagnostics Button -->
-            <button id="btn-stats-toggle" class="btn-stage-icon" title="Estatísticas de Conexão WebRTC">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 20V10M12 20V4M6 20v-6"></path>
-              </svg>
             </button>
           </div>
         </div>

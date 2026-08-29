@@ -3,13 +3,6 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
-// Configuração de linha de comando do Chromium para captura de áudio WASAPI Loopback & tela
-app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
-app.commandLine.appendSwitch('allow-http-screen-capture');
-app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.commandLine.appendSwitch('enable-features', 'AudioServiceOutOfProcess,WebRTCPipeWireCapturer');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
-
 let autoUpdater = null;
 try {
   const updaterModule = require('electron-updater');
@@ -96,13 +89,14 @@ async function createWindow() {
   // Remove o menu superior padrão do Windows para estilo limpo do Discord
   mainWindow.setMenuBarVisibility(false);
 
-  // Permissões automáticas para WebRTC (Microfone, Captura de Tela, Display Media e Áudio Loopback)
+  // Permissões automáticas para WebRTC (Microfone, Captura de Tela e Áudio)
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(true);
-  });
-
-  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    return true;
+    const allowedPermissions = ['media', 'notifications', 'pointerLock', 'fullscreen'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
   });
 
   // Tratador nativo de getDisplayMedia do Electron com suporte a loopback WASAPI de áudio do sistema

@@ -272,8 +272,6 @@ window.TriboneraWebRTC = (function () {
       let audioActuallyCaptured = false;
 
       // Prioritize System Audio Capture (Windows WASAPI / Loopback / Browser System Audio)
-      const isElectronEnv = !!(window.electronAPI && window.electronAPI.isElectron);
-
       try {
         capturedStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -282,7 +280,13 @@ window.TriboneraWebRTC = (function () {
             height: { ideal: height, max: height >= 1440 ? 1440 : 1080 },
             frameRate: { ideal: frameRate, max: frameRate }
           },
-          audio: requestSystemAudio ? true : false,
+          audio: requestSystemAudio ? {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            suppressLocalAudioPlayback: false,
+            channelCount: 2
+          } : false,
           systemAudio: requestSystemAudio ? 'include' : 'exclude',
           selfBrowserSurface: 'exclude',
           surfaceSwitching: 'include'
@@ -292,8 +296,9 @@ window.TriboneraWebRTC = (function () {
           // User canceled source selection
           throw optErr;
         }
-        console.warn('Tentativa inicial getDisplayMedia falhou, tentando fallback:', optErr);
+        console.warn('Tentativa primária com áudio avançado falhou, tentando áudio padrão:', optErr);
 
+        // Fallback: audio boolean
         try {
           capturedStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
@@ -302,7 +307,8 @@ window.TriboneraWebRTC = (function () {
               height: { ideal: height },
               frameRate: { ideal: frameRate, max: frameRate }
             },
-            audio: requestSystemAudio ? true : false
+            audio: requestSystemAudio ? true : false,
+            systemAudio: requestSystemAudio ? 'include' : 'exclude'
           });
         } catch (audioErr) {
           if (audioErr.name === 'NotAllowedError') {
@@ -327,36 +333,7 @@ window.TriboneraWebRTC = (function () {
         throw new Error('Não foi possível obter o stream de tela.');
       }
 
-      // If in Electron and audio track is missing, attach system loopback directly via getUserMedia desktop
-      if (isElectronEnv && requestSystemAudio && capturedStream.getAudioTracks().length === 0) {
-        try {
-          const loopbackStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              mandatory: {
-                chromeMediaSource: 'desktop'
-              }
-            },
-            video: false
-          });
-          if (loopbackStream && loopbackStream.getAudioTracks().length > 0) {
-            loopbackStream.getAudioTracks().forEach(t => {
-              t.enabled = true;
-              capturedStream.addTrack(t);
-            });
-            console.log('[WebRTC Electron] Áudio loopback do sistema (WASAPI) anexado com sucesso via desktop audio source!');
-          }
-        } catch (e) {
-          console.warn('[WebRTC Electron] getUserMedia loopback note:', e);
-        }
-      }
-
       audioActuallyCaptured = capturedStream.getAudioTracks().length > 0;
-      if (audioActuallyCaptured) {
-        capturedStream.getAudioTracks().forEach(t => { t.enabled = true; });
-        console.log(`[WebRTC] Áudio capturado com sucesso! Total de trilhas de áudio: ${capturedStream.getAudioTracks().length}`);
-      } else {
-        console.warn('[WebRTC] Nenhuma trilha de áudio foi retornada pela captura de tela.');
-      }
 
       // Check if user also requested microphone mixing
       let finalStream = capturedStream;
@@ -557,21 +534,12 @@ window.TriboneraWebRTC = (function () {
    */
   function setOpusStereoAndBitrate(sdp) {
     if (!sdp) return sdp;
-    try {
-      const opusMatch = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000\/2/i);
-      if (opusMatch) {
-        const pt = opusMatch[1];
-        const fmtpRegex = new RegExp(`a=fmtp:${pt}\\s+(.*)`, 'i');
-        if (fmtpRegex.test(sdp)) {
-          sdp = sdp.replace(fmtpRegex, `a=fmtp:${pt} minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=128000;cbr=1`);
-        } else {
-          sdp = sdp.replace(new RegExp(`(a=rtpmap:${pt}\\s+opus\\/48000\\/2\\r?\\n)`, 'i'), `$1a=fmtp:${pt} minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=128000;cbr=1\r\n`);
-        }
+    return sdp.replace(/a=fmtp:(\d+)(.*)/g, (match, pt, rest) => {
+      if (rest.includes('minptime') || rest.includes('useinbandfec') || rest.includes('stereo') || rest.includes('maxaveragebitrate')) {
+        return `a=fmtp:${pt} minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=128000;cbr=1`;
       }
-    } catch (e) {
-      console.warn('Opus SDP transform note:', e);
-    }
-    return sdp;
+      return match;
+    });
   }
 
   /**
