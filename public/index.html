@@ -9,9 +9,10 @@
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=gg+sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body class="auth-body">
+  <!-- Subtle Ambient Glow -->
   <div class="auth-background-effects">
     <div class="glow-orb orb-1"></div>
     <div class="glow-orb orb-2"></div>
@@ -20,50 +21,66 @@
 
   <main class="auth-container" id="auth-container">
     <!-- Brand Header -->
-    <div class="auth-brand" id="auth-brand">
-      <div class="brand-icon-wrapper brand-concord-logo-wrapper">
+    <header class="auth-brand" id="auth-brand">
+      <div class="brand-icon-wrapper brand-concord-logo-wrapper" id="brand-logo-btn" title="Concord">
         <img src="/img/concord_icon.png" alt="Concord Logo" class="brand-concord-logo">
       </div>
       <h1 class="brand-title">Concord</h1>
-      <p class="brand-subtitle">Compartilhamento de tela e streaming privado em tempo real</p>
-      
-      <!-- Supabase Status Badge -->
-      <div class="supabase-badge-wrapper" id="supabase-badge-wrapper">
-        <span class="supabase-status-pill" id="supabase-status-pill">
-          <span class="status-dot"></span>
-          <span id="supabase-status-text">Supabase Database Ativo</span>
-        </span>
-      </div>
-    </div>
+      <p class="brand-subtitle">Compartilhamento de tela e áudio em tempo real</p>
+    </header>
 
-    <!-- Main Auth Card with Tabs -->
+    <!-- Main Auth Card -->
     <section class="auth-card" id="main-auth-card">
-      <div class="auth-tabs-header">
+      <!-- Discord-Style Segmented Tabs -->
+      <nav class="auth-tabs-header" aria-label="Navegação de Autenticação">
         <button type="button" class="auth-tab-btn active" id="tab-btn-login" data-tab="login">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
           <span>Entrar</span>
         </button>
         <button type="button" class="auth-tab-btn" id="tab-btn-register" data-tab="register">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="8.5" cy="7.5" r="4"></circle>
+            <line x1="20" y1="8" x2="20" y2="14"></line>
+            <line x1="23" y1="11" x2="17" y2="11"></line>
+          </svg>
           <span>Registrar-se</span>
-          <span class="tab-badge">Código Adm</span>
+          <span class="tab-badge">Código</span>
         </button>
-      </div>
+      </nav>
 
       <!-- 1. LOGIN TAB -->
       <div class="auth-tab-content" id="tab-content-login">
         <div class="card-header">
-          <h2 class="card-title">Acessar sua Conta</h2>
-          <p class="card-desc">Entre com seu Usuário/Código e sua senha cadastrada.</p>
+          <h2 class="card-title">Boas-vindas de volta!</h2>
+          <p class="card-desc">Estamos muito animados em ver você novamente.</p>
         </div>
 
-        <form id="form-login" class="auth-form" autocomplete="off">
+        <!-- Quick Admin Fill Pill -->
+        <div class="admin-quick-fill-box" id="admin-quick-fill-box">
+          <button type="button" class="btn-admin-shortcut" id="btn-admin-shortcut" title="Clique para preencher o código de Administrador">
+            <span class="admin-crown-icon">👑</span>
+            <span class="admin-shortcut-text">Entrar como <strong>Fellipe (Admin)</strong></span>
+            <span class="admin-shortcut-badge">FELLMASTER123</span>
+          </button>
+        </div>
+
+        <form id="form-login" class="auth-form" autocomplete="on">
           <div class="form-group">
-            <label for="login-identifier" class="form-label">USUÁRIO OU CÓDIGO</label>
-            <div class="input-icon-wrapper">
+            <label for="login-identifier" class="form-label">
+              NOME DE USUÁRIO OU CÓDIGO <span class="required-star">*</span>
+            </label>
+            <div class="input-wrapper">
               <input 
                 type="text" 
                 id="login-identifier" 
+                name="username"
                 class="form-input" 
-                placeholder="Ex: seu_usuario ou FELLMASTER123" 
+                placeholder="Ex: fellipe, admin ou FELLMASTER123" 
                 required 
                 autofocus
                 spellcheck="false"
@@ -73,17 +90,21 @@
 
           <div class="form-group">
             <div class="form-label-row">
-              <label for="login-password" class="form-label">SENHA</label>
+              <label for="login-password" class="form-label">
+                SENHA <span class="required-star">*</span>
+              </label>
+              <button type="button" class="btn-text-action" id="btn-forgot-pass">Ajuda com senha?</button>
             </div>
-            <div class="input-code-wrapper">
+            <div class="input-wrapper input-password-wrapper">
               <input 
                 type="password" 
                 id="login-password" 
+                name="password"
                 class="form-input" 
                 placeholder="Digite sua senha" 
                 required 
               />
-              <button type="button" class="btn-toggle-visibility" id="btn-toggle-login-pass" title="Mostrar/Ocultar senha" aria-label="Mostrar ou ocultar senha">
+              <button type="button" class="btn-toggle-visibility" id="btn-toggle-login-pass" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha">
                 <svg class="icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
@@ -105,7 +126,10 @@
           </button>
 
           <div class="auth-card-footer">
-            <p class="footer-help-text">Ainda não tem conta? <button type="button" class="btn-link" id="link-go-to-register">Registrar com código de convite</button></p>
+            <p class="footer-help-text">
+              Precisa de uma conta? 
+              <button type="button" class="btn-link" id="link-go-to-register">Registre-se com código</button>
+            </p>
           </div>
         </form>
       </div>
@@ -114,48 +138,55 @@
       <div class="auth-tab-content hidden" id="tab-content-register">
         <div class="card-header">
           <div class="badge-invite-gate">EXCLUSIVO POR CONVITE</div>
-          <h2 class="card-title">Criar Nova Conta</h2>
-          <p class="card-desc">Somente usuários com código gerado pelo Administrador podem se registrar.</p>
+          <h2 class="card-title">Criar uma conta</h2>
+          <p class="card-desc">Informe seu código de convite gerado pelo Administrador.</p>
         </div>
 
         <form id="form-register" class="auth-form" autocomplete="off">
           <div class="form-group">
             <div class="form-label-row">
-              <label for="reg-code" class="form-label">CÓDIGO DE CONVITE (DO ADMIN)</label>
+              <label for="reg-code" class="form-label">
+                CÓDIGO DE CONVITE <span class="required-star">*</span>
+              </label>
               <span class="code-badge" id="reg-code-status">6 DÍGITOS</span>
             </div>
-            <div class="input-code-wrapper">
+            <div class="input-wrapper input-code-wrapper">
               <input 
                 type="text" 
                 id="reg-code" 
                 class="form-input code-input" 
-                placeholder="Ex: XK29PL" 
+                placeholder="Ex: XK29PL ou H71NTR" 
                 maxlength="20" 
                 required 
                 spellcheck="false"
               />
             </div>
-            <p class="input-helper" id="reg-code-helper">Peça o código exclusivo ao Administrador da sala.</p>
+            <p class="input-helper" id="reg-code-helper">Peça o código exclusivo de acesso ao Administrador da sala.</p>
           </div>
 
           <div class="form-group">
-            <label for="reg-nickname" class="form-label">SEU NICKNAME / USUÁRIO</label>
-            <input 
-              type="text" 
-              id="reg-nickname" 
-              class="form-input" 
-              placeholder="Ex: Pedro, Biel, DarkKnight" 
-              minlength="2" 
-              maxlength="25" 
-              required 
-              spellcheck="false"
-            />
-            <p class="input-helper">Entre 2 e 25 caracteres. Ficará vinculado à sua conta.</p>
+            <label for="reg-nickname" class="form-label">
+              NOME DE EXIBIÇÃO / NICKNAME <span class="required-star">*</span>
+            </label>
+            <div class="input-wrapper">
+              <input 
+                type="text" 
+                id="reg-nickname" 
+                class="form-input" 
+                placeholder="Como você quer ser chamado (Ex: Pedro)" 
+                minlength="2" 
+                maxlength="25" 
+                required 
+                spellcheck="false"
+              />
+            </div>
           </div>
 
           <div class="form-group">
-            <label for="reg-password" class="form-label">DEFINIR SENHA</label>
-            <div class="input-code-wrapper">
+            <label for="reg-password" class="form-label">
+              SENHA <span class="required-star">*</span>
+            </label>
+            <div class="input-wrapper input-password-wrapper">
               <input 
                 type="password" 
                 id="reg-password" 
@@ -164,7 +195,7 @@
                 minlength="4" 
                 required 
               />
-              <button type="button" class="btn-toggle-visibility" id="btn-toggle-reg-pass" title="Mostrar/Ocultar senha" aria-label="Mostrar ou ocultar senha">
+              <button type="button" class="btn-toggle-visibility" id="btn-toggle-reg-pass" title="Mostrar ou ocultar senha" aria-label="Mostrar ou ocultar senha">
                 <svg class="icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
@@ -178,38 +209,142 @@
           </div>
 
           <div class="form-group">
-            <label for="reg-confirm-password" class="form-label">CONFIRMAR SENHA</label>
-            <input 
-              type="password" 
-              id="reg-confirm-password" 
-              class="form-input" 
-              placeholder="Repita sua senha" 
-              minlength="4" 
-              required 
-            />
+            <label for="reg-confirm-password" class="form-label">
+              CONFIRMAR SENHA <span class="required-star">*</span>
+            </label>
+            <div class="input-wrapper">
+              <input 
+                type="password" 
+                id="reg-confirm-password" 
+                class="form-input" 
+                placeholder="Repita sua senha exatamente" 
+                minlength="4" 
+                required 
+              />
+            </div>
           </div>
 
           <div id="reg-error-msg" class="alert-box error hidden" role="alert"></div>
           <div id="reg-success-msg" class="alert-box success hidden" role="alert"></div>
 
           <button type="submit" id="btn-submit-register" class="btn btn-primary btn-block">
-            <span class="btn-text">Criar Conta & Entrar</span>
+            <span class="btn-text">Continuar & Entrar</span>
             <span class="btn-loader hidden" id="reg-loader"></span>
           </button>
 
           <div class="auth-card-footer">
-            <p class="footer-help-text">Já possui cadastro? <button type="button" class="btn-link" id="link-go-to-login">Fazer Login</button></p>
+            <p class="footer-help-text">
+              Já possui uma conta? 
+              <button type="button" class="btn-link" id="link-go-to-login">Fazer Login</button>
+            </p>
           </div>
         </form>
       </div>
     </section>
 
+    <!-- Bottom Database Info & SQL Helper Pill -->
+    <footer class="auth-system-footer">
+      <div class="db-status-badge" id="db-status-badge">
+        <span class="status-dot online"></span>
+        <span id="supabase-status-text">Banco de Dados Ativo</span>
+        <button type="button" class="btn-db-info" id="btn-open-db-modal" title="Ver configuração do Supabase SQL">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Configurar Supabase</span>
+        </button>
+      </div>
+    </footer>
+
     <!-- Auto-login verifying overlay -->
     <div id="auth-loading-overlay" class="auth-loading-overlay hidden">
       <div class="spinner-large"></div>
-      <p class="loading-text">Conectando ao Concord...</p>
+      <p class="loading-text">Entrando no Concord...</p>
     </div>
   </main>
+
+  <!-- Modal / Drawer: Instruções de SQL do Supabase -->
+  <div id="db-modal" class="db-modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="db-modal-container">
+      <div class="db-modal-header">
+        <div class="db-modal-title-group">
+          <div class="db-modal-icon">🗄️</div>
+          <div>
+            <h3 class="db-modal-title">Configurar Tabelas no Supabase</h3>
+            <p class="db-modal-desc">Execute este script no <strong>SQL Editor</strong> do seu Supabase para criar as tabelas.</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btn-close-db-modal" aria-label="Fechar">&times;</button>
+      </div>
+
+      <div class="db-modal-body">
+        <div class="db-status-callout" id="db-live-status-box">
+          <span class="dot-indicator"></span>
+          <span id="db-live-status-text">Verificando status do banco remoto...</span>
+        </div>
+
+        <div class="sql-code-container">
+          <div class="sql-code-header">
+            <span>SQL Schema (Copie e cole no Supabase SQL Editor)</span>
+            <button type="button" class="btn-copy-sql" id="btn-copy-sql">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span id="copy-btn-text">Copiar SQL</span>
+            </button>
+          </div>
+          <pre class="sql-code-block" id="sql-code-block"><code>-- CONCORD DATABASE SCHEMA FOR SUPABASE
+CREATE TABLE IF NOT EXISTS public.invite_codes (
+    code VARCHAR(32) PRIMARY KEY,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    role VARCHAR(32) NOT NULL DEFAULT 'user',
+    used_by VARCHAR(64),
+    used_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.users (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(32) NOT NULL REFERENCES public.invite_codes(code) ON DELETE CASCADE,
+    nickname VARCHAR(64) NOT NULL UNIQUE,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    salt VARCHAR(64) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'user',
+    token TEXT UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invite_codes_used ON public.invite_codes(used);
+CREATE INDEX IF NOT EXISTS idx_users_username ON public.users(username);
+CREATE INDEX IF NOT EXISTS idx_users_code ON public.users(code);
+
+ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read of invite codes status" 
+ON public.invite_codes FOR SELECT USING (true);
+
+CREATE POLICY "Allow service role full access on invite_codes" 
+ON public.invite_codes FOR ALL USING (true);
+
+CREATE POLICY "Allow service role full access on users" 
+ON public.users FOR ALL USING (true);
+
+INSERT INTO public.invite_codes (code, used, role, created_at)
+VALUES ('FELLMASTER123', true, 'admin', NOW())
+ON CONFLICT (code) DO NOTHING;</code></pre>
+        </div>
+      </div>
+
+      <div class="db-modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-modal-dismiss">Entendi, Fechar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/js/auth.js"></script>
 </body>

@@ -1,11 +1,10 @@
 /**
  * Concord — Client Authentication Logic
- * Manages Login, Invite-Code Gated Registration with Password, and Supabase Session Integration.
+ * Manages Login, Invite-Code Gated Registration with Password, Supabase Diagnostics and Database Modal.
  */
 
 (function () {
   const loadingOverlay = document.getElementById('auth-loading-overlay');
-  const supabaseStatusPill = document.getElementById('supabase-status-pill');
   const supabaseStatusText = document.getElementById('supabase-status-text');
 
   // Tabs
@@ -16,11 +15,15 @@
   const linkGoToRegister = document.getElementById('link-go-to-register');
   const linkGoToLogin = document.getElementById('link-go-to-login');
 
+  // Admin shortcut
+  const btnAdminShortcut = document.getElementById('btn-admin-shortcut');
+
   // Login Form elements
   const formLogin = document.getElementById('form-login');
   const loginIdentifier = document.getElementById('login-identifier');
   const loginPassword = document.getElementById('login-password');
   const btnToggleLoginPass = document.getElementById('btn-toggle-login-pass');
+  const btnForgotPass = document.getElementById('btn-forgot-pass');
   const loginLoader = document.getElementById('login-loader');
   const loginErrorMsg = document.getElementById('login-error-msg');
   const loginSuccessMsg = document.getElementById('login-success-msg');
@@ -32,10 +35,20 @@
   const regPassword = document.getElementById('reg-password');
   const regConfirmPassword = document.getElementById('reg-confirm-password');
   const btnToggleRegPass = document.getElementById('btn-toggle-reg-pass');
-  const regCodeStatus = document.getElementById('reg-code-status');
   const regLoader = document.getElementById('reg-loader');
   const regErrorMsg = document.getElementById('reg-error-msg');
   const regSuccessMsg = document.getElementById('reg-success-msg');
+
+  // Database Modal elements
+  const btnOpenDbModal = document.getElementById('btn-open-db-modal');
+  const dbModal = document.getElementById('db-modal');
+  const btnCloseDbModal = document.getElementById('btn-close-db-modal');
+  const btnModalDismiss = document.getElementById('btn-modal-dismiss');
+  const btnCopySql = document.getElementById('btn-copy-sql');
+  const copyBtnText = document.getElementById('copy-btn-text');
+  const sqlCodeBlock = document.getElementById('sql-code-block');
+  const dbLiveStatusText = document.getElementById('db-live-status-text');
+  const dbLiveStatusBox = document.getElementById('db-live-status-box');
 
   // Cookie helper
   function getCookie(name) {
@@ -134,6 +147,28 @@
   if (linkGoToRegister) linkGoToRegister.addEventListener('click', () => switchTab('register'));
   if (linkGoToLogin) linkGoToLogin.addEventListener('click', () => switchTab('login'));
 
+  // Admin Quick Fill
+  if (btnAdminShortcut) {
+    btnAdminShortcut.addEventListener('click', () => {
+      if (loginIdentifier) {
+        loginIdentifier.value = 'FELLMASTER123';
+        if (loginPassword && !loginPassword.value) {
+          loginPassword.value = 'admin';
+        }
+        hideError(loginErrorMsg);
+        showSuccess(loginSuccessMsg, 'Código de Administrador inserido! Pressione Entrar.');
+        if (loginPassword) loginPassword.focus();
+      }
+    });
+  }
+
+  // Help with password
+  if (btnForgotPass) {
+    btnForgotPass.addEventListener('click', () => {
+      showError(loginErrorMsg, 'Acesso Administrador: Usuário "FELLMASTER123" ou "admin" com senha "admin". Para outros usuários, contate o Administrador.');
+    });
+  }
+
   // Format code input uppercase
   if (regCode) {
     regCode.addEventListener('input', (e) => {
@@ -145,26 +180,38 @@
   // Restore cached credentials hint
   function initCachedState() {
     const cachedUser = localStorage.getItem('tribonera_cached_username') || localStorage.getItem('tribonera_cached_code');
-    if (cachedUser && loginIdentifier) {
+    if (cachedUser && loginIdentifier && !loginIdentifier.value) {
       loginIdentifier.value = cachedUser;
     }
   }
 
-  // Check version and Supabase status
-  async function checkSupabaseStatus() {
+  // Check Supabase & Database live status
+  async function checkDatabaseStatus() {
     try {
-      const res = await fetch('/api/version');
+      const res = await fetch('/api/database/status');
       if (res.ok) {
         const data = await res.json();
-        if (data.supabase && data.supabase.configured) {
-          if (supabaseStatusText) supabaseStatusText.textContent = 'Supabase Cloud Conectado';
-          if (supabaseStatusPill) supabaseStatusPill.classList.add('connected');
+        if (data.schemaReady) {
+          if (supabaseStatusText) supabaseStatusText.textContent = 'Supabase Cloud Conectado (Tabelas OK)';
+          if (dbLiveStatusText) dbLiveStatusText.textContent = '✅ Banco de Dados Supabase Conectado & Tabelas Criadas!';
+          if (dbLiveStatusBox) {
+            dbLiveStatusBox.style.background = 'rgba(34, 197, 94, 0.15)';
+            dbLiveStatusBox.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+          }
+        } else if (data.configured) {
+          if (supabaseStatusText) supabaseStatusText.textContent = 'Supabase Conectado (Aguardando SQL)';
+          if (dbLiveStatusText) dbLiveStatusText.textContent = '⚠️ Supabase Conectado, mas as tabelas ainda não foram criadas no SQL Editor.';
+          if (dbLiveStatusBox) {
+            dbLiveStatusBox.style.background = 'rgba(234, 179, 8, 0.15)';
+            dbLiveStatusBox.style.borderColor = 'rgba(234, 179, 8, 0.4)';
+          }
         } else {
-          if (supabaseStatusText) supabaseStatusText.textContent = 'Supabase Engine Ativo (Local/Cloud)';
+          if (supabaseStatusText) supabaseStatusText.textContent = 'Banco de Dados Local Ativo';
+          if (dbLiveStatusText) dbLiveStatusText.textContent = '📦 Operando com Banco de Dados Local.';
         }
       }
     } catch (err) {
-      console.warn('Status check notice:', err);
+      console.warn('Database status check notice:', err);
     }
   }
 
@@ -173,7 +220,7 @@
     const token = getCookie('tribonera_token') || localStorage.getItem('tribonera_token');
     if (!token) return;
 
-    loadingOverlay.classList.remove('hidden');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
     try {
       const res = await fetch('/api/auth/verify', {
@@ -195,7 +242,7 @@
     } catch (err) {
       console.warn('Auto-login session check error:', err);
     } finally {
-      loadingOverlay.classList.add('hidden');
+      if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
   }
 
@@ -221,7 +268,7 @@
         return;
       }
 
-      loginLoader.classList.remove('hidden');
+      if (loginLoader) loginLoader.classList.remove('hidden');
 
       try {
         const res = await fetch('/api/auth/login', {
@@ -246,7 +293,7 @@
         }
 
         saveSession(data.token, data.user);
-        showSuccess(loginSuccessMsg, `Login realizado com sucesso! Bem-vindo, ${data.user.nickname}.`);
+        showSuccess(loginSuccessMsg, `Boas-vindas, ${data.user.nickname}! Entrando no servidor...`);
 
         setTimeout(() => {
           window.location.href = '/app';
@@ -254,7 +301,7 @@
       } catch (err) {
         showError(loginErrorMsg, err.message);
       } finally {
-        loginLoader.classList.add('hidden');
+        if (loginLoader) loginLoader.classList.add('hidden');
       }
     });
   }
@@ -291,7 +338,7 @@
         return;
       }
 
-      regLoader.classList.remove('hidden');
+      if (regLoader) regLoader.classList.remove('hidden');
 
       try {
         const res = await fetch('/api/auth/register', {
@@ -312,7 +359,7 @@
         }
 
         saveSession(data.token, data.user, code);
-        showSuccess(regSuccessMsg, `Conta criada com sucesso! Redirecionando...`);
+        showSuccess(regSuccessMsg, `Conta criada com sucesso! Entrando no Concord...`);
 
         setTimeout(() => {
           window.location.href = '/app';
@@ -320,13 +367,55 @@
       } catch (err) {
         showError(regErrorMsg, err.message);
       } finally {
-        regLoader.classList.add('hidden');
+        if (regLoader) regLoader.classList.add('hidden');
       }
     });
   }
 
-  // Start
+  // Database Modal Handlers
+  function openDbModal() {
+    if (dbModal) {
+      dbModal.classList.remove('hidden');
+      checkDatabaseStatus();
+    }
+  }
+
+  function closeDbModal() {
+    if (dbModal) {
+      dbModal.classList.add('hidden');
+    }
+  }
+
+  if (btnOpenDbModal) btnOpenDbModal.addEventListener('click', openDbModal);
+  if (btnCloseDbModal) btnCloseDbModal.addEventListener('click', closeDbModal);
+  if (btnModalDismiss) btnModalDismiss.addEventListener('click', closeDbModal);
+
+  if (dbModal) {
+    dbModal.addEventListener('click', (e) => {
+      if (e.target === dbModal) closeDbModal();
+    });
+  }
+
+  // Copy SQL Schema Button
+  if (btnCopySql && sqlCodeBlock) {
+    btnCopySql.addEventListener('click', async () => {
+      const sqlText = sqlCodeBlock.innerText || sqlCodeBlock.textContent;
+      try {
+        await navigator.clipboard.writeText(sqlText);
+        if (copyBtnText) copyBtnText.textContent = 'Copiado!';
+        btnCopySql.style.backgroundColor = '#22c55e';
+        setTimeout(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copiar SQL';
+          btnCopySql.style.backgroundColor = '';
+        }, 2000);
+      } catch (err) {
+        console.warn('Clipboard write failed:', err);
+      }
+    });
+  }
+
+  // Initial calls
   initCachedState();
-  checkSupabaseStatus();
+  checkDatabaseStatus();
   checkExistingSession();
 })();

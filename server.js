@@ -92,15 +92,16 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-app.get("/api/version", (req, res) => {
-  const pkg = readJSON(path.join(__dirname, 'package.json'), { version: '1.0.5' });
-  const currentVersion = pkg.version || '1.0.5';
+app.get("/api/version", async (req, res) => {
+  const pkg = readJSON(path.join(__dirname, 'package.json'), { version: '1.0.6' });
+  const currentVersion = pkg.version || '1.0.6';
+  const supabaseStatus = await db.getSupabaseStatus();
   res.status(200).json({
     name: "Concord",
     version: currentVersion,
     build: `stable-${currentVersion}`,
     timestamp: Date.now(),
-    supabase: db.getSupabaseStatus(),
+    supabase: supabaseStatus,
     features: {
       systemAudio: true,
       webrtcMesh: true,
@@ -109,6 +110,22 @@ app.get("/api/version", (req, res) => {
       inviteCodeGate: true
     }
   });
+});
+
+app.get('/api/database/status', async (req, res) => {
+  try {
+    const status = await db.getSupabaseStatus();
+    const codes = await db.getCodes();
+    const users = await db.getUsers();
+    res.json({
+      ...status,
+      totalCodes: codes.length,
+      totalUsers: users.length,
+      schemaReady: status.tablesExist
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/app', (req, res) => {
